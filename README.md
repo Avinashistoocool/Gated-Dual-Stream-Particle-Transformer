@@ -200,5 +200,3 @@ That statement captures the central architectural novelty relative to the origin
 ## Disclaimer
 
 This project is intentionally inspired by ParT while exploring a different architectural mechanism. It should be treated as an original research prototype built for understanding, experimentation, and presentation rather than as an official reproduction of the published model.[1][2]
-#   G a t e d - D u a l - S t r e a m - P a r t i c l e - T r a n s f o r m e r  
- 
