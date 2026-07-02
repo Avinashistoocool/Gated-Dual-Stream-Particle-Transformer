@@ -1,0 +1,204 @@
+# Gated-Dual-Stream-Particle-Transformer
+
+A custom PyTorch architecture for jet classification that rethinks how pairwise particle physics enters a transformer. Instead of following ParT exactly, GDS-ParT uses a **Gated Dual-Stream** design in which pairwise interaction features modulate particle representations before attention is computed. The baseline inspiration is Particle Transformer for Jet Tagging by Qu et al. and the JetClass benchmark released alongside it.[1][2]
+
+## Overview
+
+ParT introduces pairwise kinematic information as an additive bias inside attention:
+
+$$
+\text{Attention} = \text{Softmax}\left(\frac{QK^T}{\sqrt{d}} + \psi(U)\right)
+$$
+
+where $$U_{ij}$$ denotes pairwise particle features and $$\psi(U)$$ is a learned continuous function.[1]
+
+GDS-ParT takes a different route. It embeds pairwise features into a relational tensor, aggregates those relations into per-particle gates, and uses the resulting gates to scale query and key channels before the dot product. This moves physics fusion from additive logit biasing into multiplicative feature-space conditioning.[1][2]
+
+## Why this is different
+
+The main goal of this project is to build an original “proof of work” model rather than reproduce the official implementation. The official repository provides the reference ParT codebase and JetClass dataset tooling, but this project intentionally explores a different inductive bias for combining particle-level and pairwise information.[2]
+
+In GDS-ParT, the model asks: **how should a particle represent itself, given its full relational environment inside the jet?** Pairwise physics therefore changes the geometry of the token embeddings used to compute attention, rather than only shifting the final attention matrix.[1]
+
+## Physics intuition
+
+The pairwise stream uses physically meaningful observables such as angular separation and relative kinematics, matching the general ParT setup where interaction information is provided separately from single-particle features.[1][3]
+
+In this architecture, those pairwise observables act like a context-dependent feature selector. If a particle sits in a relational neighborhood suggestive of substructure, collimation, or strong correlated activity, the gate can amplify some query/key channels and suppress others before attention is formed. That makes the pairwise physics structurally active in the representation itself, not merely an auxiliary correction term.[1][3]
+
+## Architecture
+
+### Inputs
+
+The model works with three core tensors:
+
+- Particle features: `(B, N, 17)`
+- Pairwise interaction features: `(B, N, N, 4)`
+- Labels: `(B,)` for 10 jet classes
+
+These shapes follow the project design goals for a self-contained PyTorch implementation and are compatible with synthetic testing before loading real JetClass data.[1][2]
+
+### Modules
+
+1. **Particle embedding**  
+   Projects the 17 raw single-particle features into an `embed_dim` latent space.
+
+2. **Pairwise embedding**  
+   Projects the 4 pairwise physics features into a relational tensor of shape `(B, N, N, D)`.
+
+3. **Relational gate**  
+   Aggregates the pairwise relational tensor across neighbors and converts the summary into element-wise gates in `(0, 1)`.
+
+4. **Gated dual-stream attention**  
+   Applies separate gates to query and key channels before attention is computed.
+
+5. **Pooling + classifier**  
+   Pools over particle tokens and predicts one of 10 jet categories.
+
+## Architecture contrast
+
+| Aspect | ParT | GDS-ParT |
+|---|---|---|
+| Pairwise information enters | Additive bias in attention logits `[QK^T / sqrt(d) + ψ(U)]` [1] | Multiplicative gating on particle representations before attention |
+| Fusion space | Logit space | Feature space |
+| Effect of pairwise physics | Changes attention scores directly [1] | Changes how particles form queries and keys |
+| Project aim | Official benchmark architecture [2] | Original proof-of-work alternative |
+
+## Repository goals
+
+This repository is meant to support three use cases:
+
+- Understand the structural difference between ParT and a gated relational alternative.
+- Train a clean PyTorch prototype on synthetic data first.
+- Scale to the JetClass dataset once the pipeline is verified.
+
+The official ParT repository includes JetClass data tooling and pretrained-model infrastructure, which makes it the natural reference point for dataset preparation and benchmarking.[2]
+
+## Expected file structure
+
+```text
+.
+├── README.md
+├── CLAUDE.md
+├── gds_part_colab.py            # single-file notebook-friendly implementation
+├── train_gds_part.py            # optional standalone trainer
+├── checkpoints/
+└── data/
+    └── JetClass/
+```
+
+A notebook-friendly single-file implementation is recommended because multi-file imports often create friction in Colab and Jupyter workflows.
+
+## Installation
+
+Install the core dependencies first:
+
+```bash
+pip install torch numpy uproot awkward
+```
+
+These packages are sufficient for PyTorch training plus reading ROOT-based JetClass files in a lightweight custom pipeline. The official Particle Transformer repository also distributes dataset tooling through its own setup and scripts.[2]
+
+## Getting the dataset
+
+The official Particle Transformer repository contains the JetClass dataset tooling and is the canonical source referenced by the ParT paper.[1][2]
+
+```bash
+git clone https://github.com/jet-universe/particle_transformer
+cd particle_transformer
+python get_datasets.py JetClass -d ./data
+```
+
+This prepares the standard JetClass directory structure used by the reference implementation.[2]
+
+## Important data-format note
+
+One practical issue when adapting JetClass data is tensor axis ordering. The official ecosystem commonly uses feature-first particle tensors, while a clean PyTorch transformer implementation is often easier to write in particle-major format, so a transpose step may be required before the forward pass.[2]
+
+Typical conversion:
+
+```python
+# official-style shape: (num_jets, 17, max_particles)
+x = x.transpose(1, 2)  # -> (num_jets, max_particles, 17)
+```
+
+## Running a synthetic test
+
+A synthetic data generator is useful before touching the real dataset. It should emit:
+
+- particle features,
+- pairwise features,
+- labels,
+- optional masks for padded particles.
+
+A minimal training sanity check should include one forward pass, one cross-entropy loss computation, one backward pass, and one optimizer step. This confirms the architecture is differentiable and free of shape mismatches.
+
+## Training on JetClass
+
+Once the synthetic pipeline works, train on JetClass using train/validation/test splits. The JetClass benchmark introduced with ParT is a large-scale jet-tagging dataset with 100 million jets, designed specifically for this problem setting.[1]
+
+Recommended training ingredients:
+
+- `nn.CrossEntropyLoss` for multi-class classification
+- `AdamW` optimizer
+- learning-rate warmup plus cosine decay
+- gradient clipping
+- checkpointing of best and last model
+
+Example launch pattern:
+
+```bash
+python train_gds_part.py \
+  --train ./particle_transformer/data/JetClass/train_100M \
+  --val   ./particle_transformer/data/JetClass/val_5M \
+  --test  ./particle_transformer/data/JetClass/test_20M \
+  --epochs 10 \
+  --batch_size 512
+```
+
+## Accuracy and evaluation
+
+For multi-class jet tagging, the simplest metric is top-1 accuracy:
+
+$$
+\text{Accuracy} = \frac{\text{correct predictions}}{\text{total predictions}}
+$$
+
+In code, this is usually computed with `argmax` over the class logits and comparison against the true labels.
+
+Useful evaluation outputs:
+
+- training accuracy per epoch
+- validation accuracy per epoch
+- final test accuracy
+- per-class accuracy
+- confusion matrix
+
+These metrics make it easier to compare GDS-ParT against ParT-style baselines and inspect which jet categories benefit most from relational gating.[1][2]
+
+## Interpreting the gated mechanism
+
+A good way to explain the model is:
+
+> ParT injects pairwise kinematics into the attention matrix as an additive bias. GDS-ParT instead converts pairwise kinematics into per-particle gates that reshape the query and key channels before attention. So pairwise physics changes the representation geometry itself, not only the final attention scores.
+
+That statement captures the central architectural novelty relative to the original ParT formulation.[1]
+
+## Suggested next steps
+
+- Add masking for variable particle multiplicity.
+- Visualize learned gates for interpretability.
+- Compare gated fusion against a small ParT-like baseline.
+- Measure per-class gains on difficult JetClass categories.
+- Test whether gate asymmetry for queries vs. keys improves performance.
+
+## Reference sources
+
+- ParT paper: [Particle Transformer for Jet Tagging](https://arxiv.org/abs/2202.03772) [1]
+- Official repository: [jet-universe/particle_transformer](https://github.com/jet-universe/particle_transformer) [2]
+
+## Disclaimer
+
+This project is intentionally inspired by ParT while exploring a different architectural mechanism. It should be treated as an original research prototype built for understanding, experimentation, and presentation rather than as an official reproduction of the published model.[1][2]
+#   G a t e d - D u a l - S t r e a m - P a r t i c l e - T r a n s f o r m e r  
+ 
