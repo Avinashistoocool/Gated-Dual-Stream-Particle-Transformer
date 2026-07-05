@@ -1,4 +1,4 @@
-# CLAUDE.md — project context for GDS-ParT
+project context for GDS-ParT
 
 ## What this is
 A from-scratch PyTorch implementation of GDS-ParT (Gated Dual-Stream
