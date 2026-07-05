@@ -79,7 +79,7 @@ The official ParT repository includes JetClass data tooling and pretrained-model
 ```text
 .
 ├── README.md
-├── CLAUDE.md
+├── context.md
 ├── gds_part_colab.py            # single-file notebook-friendly implementation
 ├── train_gds_part.py            # optional standalone trainer
 ├── checkpoints/
