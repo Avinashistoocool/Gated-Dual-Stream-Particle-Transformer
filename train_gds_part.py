@@ -25,6 +25,17 @@ import torch.nn.functional as F
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from gds_part_colab import GDSParT, GDSParTConfig, make_synthetic_batch
+from run_logger import RunLogger
+
+log = None  # RunLogger, created in train()
+
+
+def _say(msg=""):
+    if log is not None:
+        for line in str(msg).strip("\n").splitlines() or [""]:
+            log.info(line)
+    else:
+        print(msg, flush=True)
 
 
 # ----------------------------------------------------------------------
@@ -165,15 +176,15 @@ class SyntheticLoader:
 # Training loop
 # ----------------------------------------------------------------------
 def _print_metrics(tag, m, class_names):
-    print(f"\n[{tag}] n_jets={m['n_jets']:,}  accuracy={m['accuracy']:.4f}  "
+    _say(f"[{tag}] n_jets={m['n_jets']:,}  accuracy={m['accuracy']:.4f}  "
           f"AUC(macro,ovo)={m['auc_macro_ovo']:.4f}  loss={m['loss']:.4f}")
     if m.get("rejection"):
-        print("  background rejection vs QCD (1/FPR at fixed signal efficiency):")
+        _say("  background rejection vs QCD (1/FPR at fixed signal efficiency):")
         for k, v in m["rejection"].items():
-            print(f"    {k:14s} {v:10.1f}")
-    print("  per-class accuracy:")
+            _say(f"    {k:14s} {v:10.1f}")
+    _say("  per-class accuracy:")
     for name, acc in zip(class_names, m["per_class_accuracy"]):
-        print(f"    {name:6s} {acc:.4f}")
+        _say(f"    {name:6s} {acc:.4f}")
 
 
 def _jsonable(m):
@@ -200,10 +211,13 @@ def _make_real_loaders(args, cfg):
 
 
 def train(args):
+    global log
+    log = RunLogger(args.checkpoint_dir, name="train")
+    log.env(args)
     torch.manual_seed(args.seed)
     device = "cuda" if torch.cuda.is_available() else "cpu"
     use_amp = args.amp and device == "cuda"
-    print(f"device: {device}  amp: {use_amp}")
+    _say(f"device: {device}  amp: {use_amp}")
 
     cfg = GDSParTConfig(
         embed_dim=args.embed_dim, n_heads=args.n_heads, n_layers=args.n_layers,
@@ -212,7 +226,8 @@ def train(args):
     )
     model = GDSParT(cfg).to(device)
     n_params = sum(p.numel() for p in model.parameters())
-    print(f"model parameters: {n_params:,}")
+    _say(f"model parameters: {n_params:,}")
+    log.event("model", n_params=n_params, config=vars(cfg))
 
     if args.synthetic:
         train_loader = SyntheticLoader(cfg, n_batches=args.synthetic_batches,
@@ -252,7 +267,7 @@ def train(args):
         global_step = ck.get("global_step", start_epoch * steps_per_epoch)
         best_val_acc = ck.get("best_val_acc", ck.get("val_acc", -1.0))
         history = ck.get("history", [])
-        print(f"resumed from {last_path} at epoch {start_epoch}")
+        _say(f"resumed from {last_path} at epoch {start_epoch}")
 
     def save(name, epoch, val_metrics):
         torch.save({
@@ -263,7 +278,7 @@ def train(args):
             "best_val_acc": best_val_acc, "history": history, "args": vars(args),
         }, os.path.join(args.checkpoint_dir, name))
 
-    print(f"steps/epoch: {steps_per_epoch:,}  total steps: {total_steps:,}")
+    _say(f"steps/epoch: {steps_per_epoch:,}  total steps: {total_steps:,}")
     for epoch in range(start_epoch, args.epochs):
         model.train()
         epoch_loss, epoch_correct, epoch_total = 0.0, 0, 0
@@ -299,12 +314,15 @@ def train(args):
             epoch_total += labels.size(0)
 
             if global_step % args.log_every == 0:
+                log.event("step", epoch=epoch + 1, step=global_step, loss=loss.item(),
+                          run_acc=epoch_correct / epoch_total, lr=scheduler.get_last_lr()[0],
+                          gpu_mem_gb=torch.cuda.max_memory_allocated() / 2**30 if device == "cuda" else 0)
                 lr_now = scheduler.get_last_lr()[0]
                 rate = args.log_every * args.batch_size / (time.time() - tlog)
                 tlog = time.time()
-                print(f"  ep {epoch+1} step {global_step}/{total_steps}  loss={loss.item():.4f}  "
+                _say(f"  ep {epoch+1} step {global_step}/{total_steps}  loss={loss.item():.4f}  "
                       f"run_acc={epoch_correct / epoch_total:.4f}  lr={lr_now:.2e}  "
-                      f"{rate:.0f} jets/s", flush=True)
+                      f"{rate:.0f} jets/s")
 
         train_acc = epoch_correct / max(epoch_total, 1)
         train_loss = epoch_loss / max(epoch_total, 1)
@@ -319,7 +337,9 @@ def train(args):
         if val_metrics:
             msg += (f"  val_loss={val_metrics['loss']:.4f} val_acc={val_metrics['accuracy']:.4f} "
                     f"val_auc={val_metrics['auc_macro_ovo']:.4f}")
-        print(msg + f"  ({dt / 60:.1f} min)", flush=True)
+        _say(msg + f"  ({dt / 60:.1f} min)")
+        if val_metrics:
+            log.metrics("val_epoch", {"epoch": epoch + 1, **val_metrics})
         history.append({"epoch": epoch + 1, "train_loss": train_loss, "train_acc": train_acc,
                         **({"val_loss": val_metrics["loss"], "val_acc": val_metrics["accuracy"],
                             "val_auc": val_metrics["auc_macro_ovo"]} if val_metrics else {})})
@@ -328,17 +348,19 @@ def train(args):
         if cur > best_val_acc:
             best_val_acc = cur
             save("best.pt", epoch, val_metrics)
-            print(f"  -> new best model saved (val_acc={best_val_acc:.4f})", flush=True)
+            log.event("checkpoint", file="best.pt", epoch=epoch + 1, val_acc=best_val_acc)
+            _say(f"  -> new best model saved (val_acc={best_val_acc:.4f})")
         save("last.pt", epoch, val_metrics)
+        log.event("epoch", **history[-1], minutes=dt / 60)
 
-    print(f"\nTraining complete. Best val_acc={best_val_acc:.4f}")
+    _say(f"\nTraining complete. Best val_acc={best_val_acc:.4f}")
 
     results = {"n_params": n_params, "history": history, "args": vars(args)}
     best_path = os.path.join(args.checkpoint_dir, "best.pt")
     if os.path.exists(best_path):
         model.load_state_dict(torch.load(best_path, map_location=device,
                                          weights_only=False)["model_state"])
-        print("loaded best.pt for final evaluation")
+        _say("loaded best.pt for final evaluation")
     for tag, loader in (("val (best ckpt)", val_loader), ("TEST (best ckpt)", test_loader)):
         if loader is None:
             continue
@@ -346,17 +368,21 @@ def train(args):
                                    max_pairs=2 * args.max_pairs_per_step)
         _print_metrics(tag, m, class_names)
         if tag.startswith("TEST"):
-            print("\nConfusion matrix (rows=true, cols=pred):")
-            print(m["confusion"])
+            _say("\nConfusion matrix (rows=true, cols=pred):")
+            _say(np.array2string(np.asarray(m["confusion"]), max_line_width=200))
         split = tag.split()[0].lower()
         np.savez_compressed(os.path.join(args.checkpoint_dir, f"{split}_predictions.npz"),
                             scores=m.pop("scores"), labels=m.pop("labels"),
                             class_names=np.array(class_names))
         results[split] = _jsonable(m)
+        log.metrics(f"final_{split}", m)
 
     with open(os.path.join(args.checkpoint_dir, "results.json"), "w") as f:
         json.dump(results, f, indent=2, default=float)
-    print(f"metrics written to {os.path.join(args.checkpoint_dir, 'results.json')}")
+    _say(f"metrics written to {os.path.join(args.checkpoint_dir, 'results.json')}")
+    log.mark_done({"best_val_acc": best_val_acc,
+                   "test_accuracy": results.get("test", {}).get("accuracy"),
+                   "test_auc": results.get("test", {}).get("auc_macro_ovo")})
 
 
 def build_argparser():
