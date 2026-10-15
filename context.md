@@ -15,7 +15,13 @@ an additive term added to attention logits.
   forward/backward/optimizer-step sanity check — this has been verified to
   pass (124,460 params in the default sanity-check config, loss ~2.09 on
   a random 10-class synthetic batch).
-- `data/jetclass_dataset.py` — real JetClass ROOT loader. Computes the
+- `data/jetclass_cache.py` — scalable pipeline used by the trainer: ragged
+  on-disk per-particle cache (feats.bin/vectors.bin/offsets.npy), block-shuffled
+  length-bucketed `CachedJetLoader`, and GPU `pairwise_features()`.
+- `data/fetch_jetclass_subset.py` — downloads individual .root files from the
+  Zenodo tars via HTTP range requests (no full-tar download needed).
+- `make_report.py` — plots + RESULTS.md with ParT-paper comparison table.
+- `data/jetclass_dataset.py` — original in-memory loader (legacy). Computes the
   standard 17 ParT particle features and 4 pairwise interaction features
   (ln delta, ln kt, ln z, ln m2) from raw `part_px/py/pz/energy/deta/dphi/
   charge/pid/d0val/d0err/dzval/dzerr` branches. In-memory dataset, fine for

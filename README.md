@@ -133,7 +133,35 @@ A synthetic data generator is useful before touching the real dataset. It should
 
 A minimal training sanity check should include one forward pass, one cross-entropy loss computation, one backward pass, and one optimizer step. This confirms the architecture is differentiable and free of shape mismatches.
 
-## Training on JetClass
+## Training on JetClass (efficient pipeline)
+
+The trainer no longer stores dense `(N, N, 4)` pairwise tensors (≈256 KB/jet). It caches only
+per-particle arrays on disk, ragged, about 1.9 KB/jet, and computes the 4 pairwise features on the GPU
+for each batch. Batches are bucketed by particle multiplicity, and very large-N batches are split
+into micro-batches with gradient accumulation. With these changes, a 6 GB laptop GPU and 16 GB of RAM
+can train on 10M+ jets.
+
+```bash
+# 1. data: either extract a full train_100M_partX.tar (10M jets) or fetch a per-class subset
+python data/fetch_jetclass_subset.py --out D:/JetClass --train_files 1 --val_files 1 --test_files 1
+
+# 2. train (the first run builds the cache under --cache_dir; later runs reuse it)
+python train_gds_part.py --train D:/JetClass/train_10M --val D:/JetClass/val --test D:/JetClass/test \
+  --cache_dir D:/JetClass/cache --epochs 8 --batch_size 512 --lr 1e-3 \
+  --checkpoint_dir ./checkpoints/jetclass_10M          # add --resume to continue
+
+# 3. plots + markdown tables, including a comparison with the ParT paper
+python make_report.py --run_dir ./checkpoints/jetclass_10M
+```
+
+Outputs: `best.pt`, `last.pt`, `results.json`, `{val,test}_predictions.npz` and `report/`.
+
+Metrics follow the ParT paper (Sec. 2): 10-class accuracy, macro one-vs-one AUC, and the
+background rejection `Rej_X% = 1/FPR at TPR = X%` for each signal class versus QCD. The rejection
+uses the two-class score `S/(S+B)` and is measured at 50% efficiency, except H→ℓνqq′ (99%) and
+t→bℓν (99.5%).
+
+## Legacy training example
 
 Once the synthetic pipeline works, train on JetClass using train/validation/test splits. The JetClass benchmark introduced with ParT is a large-scale jet-tagging dataset with 100 million jets, designed specifically for this problem setting.[1]
 

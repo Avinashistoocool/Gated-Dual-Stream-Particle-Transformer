@@ -24,6 +24,7 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.utils.checkpoint
 
 
 # ----------------------------------------------------------------------
@@ -184,17 +185,14 @@ class GatedDualStreamAttention(nn.Module):
         k = self._split_heads(k)
         v = self._split_heads(v)
 
-        scores = torch.matmul(q, k.transpose(-2, -1)) / math.sqrt(self.head_dim)  # (B,H,N,N)
-
+        attn_mask = None
         if key_padding_mask is not None:
-            mask = key_padding_mask[:, None, None, :]  # (B,1,1,N) True=keep
-            scores = scores.masked_fill(~mask, float("-inf"))
+            attn_mask = key_padding_mask[:, None, None, :]  # (B,1,1,N) True=keep
 
-        attn = torch.softmax(scores, dim=-1)
-        attn = torch.nan_to_num(attn)  # rows that were fully masked -> 0s not NaN
-        attn = self.dropout(attn)
-
-        out = torch.matmul(attn, v)  # (B,H,N,hd)
+        # fused memory-efficient kernel: never materializes the (B,H,N,N) scores
+        out = F.scaled_dot_product_attention(
+            q, k, v, attn_mask=attn_mask,
+            dropout_p=self.dropout.p if self.training else 0.0)  # (B,H,N,hd)
         out = out.transpose(1, 2).contiguous().view(B, N, D)
         return self.out_proj(out)
 
@@ -260,6 +258,10 @@ class GDSParT(nn.Module):
                  for _ in range(cfg.n_layers)]
             )
 
+    def _compute_gates(self, pairwise_features, mask):
+        rel = self.pairwise_embed(pairwise_features)        # (B, N, N, pairwise_embed_dim)
+        return self.rel_gate(rel, key_padding_mask=mask)
+
     def forward(self, particle_features, pairwise_features, mask=None):
         """
         particle_features: (B, N, 17)
@@ -268,8 +270,17 @@ class GDSParT(nn.Module):
         Returns: logits (B, n_classes)
         """
         x = self.particle_embed(particle_features)         # (B, N, embed_dim)
-        rel = self.pairwise_embed(pairwise_features)        # (B, N, N, pairwise_embed_dim)
-        gate_q, gate_k = self.rel_gate(rel, key_padding_mask=mask)
+        rel = None
+        if self.regate_every_layer:
+            rel = self.pairwise_embed(pairwise_features)    # (B, N, N, pairwise_embed_dim)
+            gate_q, gate_k = self.rel_gate(rel, key_padding_mask=mask)
+        elif self.training and torch.is_grad_enabled():
+            # the (B, N, N, D) relational tensor dominates activation memory;
+            # recompute it in backward instead of storing it
+            gate_q, gate_k = torch.utils.checkpoint.checkpoint(
+                self._compute_gates, pairwise_features, mask, use_reentrant=False)
+        else:
+            gate_q, gate_k = self._compute_gates(pairwise_features, mask)
 
         for i, block in enumerate(self.blocks):
             if self.regate_every_layer:
