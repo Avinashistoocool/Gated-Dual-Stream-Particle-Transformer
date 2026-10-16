@@ -10,10 +10,15 @@ an additive term added to attention logits.
 ## Files
 - `gds_part_colab.py` — single-file model definition (ParticleEmbedding,
   PairwiseEmbedding, RelationalGate, GatedDualStreamAttention, GDSParTBlock,
-  GDSParT). Also contains `make_synthetic_batch()` and `sanity_check()`.
+  ClassAttentionBlock, GDSParT). v2 defaults: identity (1+tanh) gates, per-layer
+  attention-weighted gates, hybrid pairwise logit bias, 2 CLS blocks, 8 layers
+  (~2.49M params). v1 = gate_mode="sigmoid", per_layer_gate=False,
+  pair_bias=False, n_cls_layers=0, n_layers=6 (old v1 checkpoints load with that config).
+  Also contains `make_synthetic_batch()` and `sanity_check()`.
+- `hpc/` — PBS/Torque job script (`train_pbs.sh`, resumable) and env/data setup.
   Running this file directly (`python gds_part_colab.py`) does one
   forward/backward/optimizer-step sanity check — this has been verified to
-  pass (124,460 params in the default sanity-check config, loss ~2.09 on
+  pass (222,928 params in the default sanity-check config, loss ~2.16 on
   a random 10-class synthetic batch).
 - `data/jetclass_cache.py` — scalable pipeline used by the trainer: ragged
   on-disk per-particle cache (feats.bin/vectors.bin/offsets.npy), block-shuffled

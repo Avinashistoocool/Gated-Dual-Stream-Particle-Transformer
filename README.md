@@ -133,6 +133,31 @@ A synthetic data generator is useful before touching the real dataset. It should
 
 A minimal training sanity check should include one forward pass, one cross-entropy loss computation, one backward pass, and one optimizer step. This confirms the architecture is differentiable and free of shape mismatches.
 
+## GDS-ParT v2 (current default)
+
+v1 averaged the pairwise embedding uniformly over all neighbours into one sigmoid gate, shared by every layer, then used mean pooling (test acc 0.827 at 10M jets). v2 keeps multiplicative Q/K gating as the core idea and fixes its bottlenecks:
+
+| Change | Why |
+|---|---|
+| Gates `1 + tanh(·)`, zero-initialized | start as the identity; can amplify (≤2×) or suppress channels instead of only shrinking Q/K |
+| Per-layer gates with attention-weighted neighbour aggregation `α_ij = softmax_j(rel_ij · W h_i)` | each particle chooses which relations matter, conditioned on its current state at every depth |
+| Hybrid fusion: per-head pairwise logit bias, in addition to gates | restores pair-specific (i, j) information that a per-particle gate cannot represent |
+| 2 class-attention blocks (CLS token) | ParT-style learned pooling instead of mean pooling |
+| Label smoothing 0.1, EMA of weights (0.999), 8 layers (~2.5M params) | regularization and stable eval weights at a size comparable to ParT |
+
+All switches are CLI flags. `--gate_mode sigmoid --per_layer_gate 0 --pair_bias 0 --n_cls_layers 0 --n_layers 6 --label_smoothing 0 --ema_decay 0` reproduces v1. Use them for ablations, for example to measure how much accuracy comes from the gates and how much from the bias.
+
+## Running on an HPC cluster (PBS/Torque)
+
+```bash
+git clone https://github.com/Avinashistoocool/Gated-Dual-Stream-Particle-Transformer && cd Gated-Dual-Stream-Particle-Transformer
+DATA=/scratch/$USER/JetClass bash hpc/setup_env.sh data   # conda env + 10M/1M/1M jets
+qsub -v DATA=/scratch/$USER/JetClass,EPOCHS=20,RUN=./checkpoints/v2_10M hpc/train_pbs.sh
+qstat -u $USER                                            # monitor; logs in $RUN/train.log
+```
+
+First, edit the `#PBS` queue, resource, and `module load` lines in `hpc/train_pbs.sh` to match your cluster. The job always passes `--resume`, so if the walltime limit stops it, resubmit the same command with the same `RUN` and training continues from `last.pt`. On 40–80 GB GPUs, raise `MAX_PAIRS` (for example to 8–16M) so that fewer micro-batches are needed.
+
 ## Training on JetClass (efficient pipeline)
 
 The trainer no longer stores dense `(N, N, 4)` pairwise tensors (≈256 KB/jet). It caches only

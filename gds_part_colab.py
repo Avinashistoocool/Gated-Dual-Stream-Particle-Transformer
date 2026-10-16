@@ -9,7 +9,15 @@ Core idea (contrast with ParT):
               Attention = Softmax( Q'K'^T / sqrt(d) )              [multiplicative feature gating]
 
 where U is the pairwise interaction tensor (B, N, N, 4) and gate_Q/gate_K are
-learned, relation-aggregated, per-particle gates in (0, 1).
+learned, relation-aggregated, per-particle gates.
+
+v2 (default config) extends this with:
+    - identity-initialized gates 1 + tanh(.) in (0, 2) instead of sigmoid (0, 1)
+    - per-layer gates whose neighbour aggregation is attention-weighted by the
+      block's current particle state (instead of one uniform mean for all layers)
+    - hybrid fusion: a ParT-style per-head pairwise logit bias alongside the gates
+    - class-attention (CLS token) pooling instead of masked mean pooling
+See GDSParTConfig for the switches that recover the v1 model.
 
 Shapes:
     particle features:  (B, N, 17)
@@ -31,6 +39,21 @@ import torch.utils.checkpoint
 # Config
 # ----------------------------------------------------------------------
 class GDSParTConfig:
+    """v2 options (defaults = full v2 model):
+        gate_mode       "identity": gate = 1 + tanh(.), zero-initialized so every gate
+                        starts at exactly 1 and can amplify (up to 2x) or suppress channels.
+                        "sigmoid": v1 behaviour, gate in (0, 1).
+        per_layer_gate  each block owns a RelationalGate whose neighbour aggregation is
+                        an attention-weighted sum conditioned on the block's current
+                        particle state (v1: one uniform-mean gate shared by all blocks).
+        pair_bias       also add a ParT-style per-head pairwise bias to the attention logits
+                        (hybrid: multiplicative Q/K gating + additive logit bias).
+        n_cls_layers    class-attention blocks with a learned CLS token for pooling
+                        (0 = masked mean pooling, as in v1).
+    Setting gate_mode="sigmoid", per_layer_gate=False, pair_bias=False, n_cls_layers=0
+    gives the v1 architecture.
+    """
+
     def __init__(
         self,
         n_particle_features: int = 17,
@@ -38,13 +61,18 @@ class GDSParTConfig:
         n_classes: int = 10,
         embed_dim: int = 128,
         n_heads: int = 8,
-        n_layers: int = 6,
+        n_layers: int = 8,
         ffn_dim: int = 512,
         pairwise_embed_dim: int = 64,
         dropout: float = 0.1,
         max_particles: int = 128,
+        gate_mode: str = "identity",
+        per_layer_gate: bool = True,
+        pair_bias: bool = True,
+        n_cls_layers: int = 2,
     ):
         assert embed_dim % n_heads == 0, "embed_dim must be divisible by n_heads"
+        assert gate_mode in ("identity", "sigmoid")
         self.n_particle_features = n_particle_features
         self.n_pairwise_features = n_pairwise_features
         self.n_classes = n_classes
@@ -55,6 +83,10 @@ class GDSParTConfig:
         self.pairwise_embed_dim = pairwise_embed_dim
         self.dropout = dropout
         self.max_particles = max_particles
+        self.gate_mode = gate_mode
+        self.per_layer_gate = bool(per_layer_gate)
+        self.pair_bias = bool(pair_bias)
+        self.n_cls_layers = n_cls_layers
 
 
 # ----------------------------------------------------------------------
@@ -74,7 +106,6 @@ class ParticleEmbedding(nn.Module):
         )
 
     def forward(self, x):
-        # x: (B, N, in_features)
         return self.net(x)
 
 
@@ -94,7 +125,6 @@ class PairwiseEmbedding(nn.Module):
         )
 
     def forward(self, u):
-        # u: (B, N, N, in_features)
         return self.net(u)
 
 
@@ -102,46 +132,60 @@ class PairwiseEmbedding(nn.Module):
 # 3. Relational gate
 # ----------------------------------------------------------------------
 class RelationalGate(nn.Module):
-    """Aggregates the (B, N, N, D) relational tensor across the neighbor
-    axis (dim=2) into a per-particle summary, then maps that summary to
-    two independent element-wise gates in (0, 1): one for queries, one
-    for keys. Padded neighbors are excluded from the aggregation via mask.
+    """Aggregates the (B, N, N, D) relational tensor over neighbours j into a
+    per-particle summary and maps it to two gates (query and key).
+
+    Aggregation:
+        x is None -> masked uniform mean over neighbours (v1)
+        x given   -> attention-weighted: alpha_ij = softmax_j(<rel_ij, W x_i> / sqrt(D)),
+                     so each particle decides which relations matter given its
+                     current representation.
+    Gates:
+        "identity" -> 1 + tanh(MLP(summary)), last layer zero-init (gate == 1 at init)
+        "sigmoid"  -> sigmoid(MLP(summary))
     """
 
-    def __init__(self, pairwise_dim: int, embed_dim: int):
+    def __init__(self, pairwise_dim: int, embed_dim: int, mode: str = "identity",
+                 conditioned: bool = False):
         super().__init__()
-        self.query_gate = nn.Sequential(
-            nn.Linear(pairwise_dim, embed_dim),
-            nn.GELU(),
-            nn.Linear(embed_dim, embed_dim),
-            nn.Sigmoid(),
-        )
-        self.key_gate = nn.Sequential(
-            nn.Linear(pairwise_dim, embed_dim),
-            nn.GELU(),
-            nn.Linear(embed_dim, embed_dim),
-            nn.Sigmoid(),
-        )
+        self.mode = mode
+        self.scale = pairwise_dim ** -0.5
+        self.ctx = nn.Linear(embed_dim, pairwise_dim) if conditioned else None
+        self.query_gate = self._mlp(pairwise_dim, embed_dim)
+        self.key_gate = self._mlp(pairwise_dim, embed_dim)
 
-    def forward(self, rel, key_padding_mask=None):
+    def _mlp(self, d_in, d_out):
+        last = nn.Linear(d_out, d_out)
+        if self.mode == "identity":
+            nn.init.zeros_(last.weight)
+            nn.init.zeros_(last.bias)
+        return nn.Sequential(nn.Linear(d_in, d_out), nn.GELU(), last)
+
+    def _act(self, z):
+        return 1.0 + torch.tanh(z) if self.mode == "identity" else torch.sigmoid(z)
+
+    def forward(self, rel, key_padding_mask=None, x=None):
         """
-        rel: (B, N, N, D) relational tensor, rel[b, i, j] describes the
-             relation between particle i and particle j.
-        key_padding_mask: (B, N) bool, True = real particle.
-        Returns: gate_q, gate_k each of shape (B, N, embed_dim)
+        rel: (B, N, N, D), rel[b, i, j] = relation of particle i to neighbour j
+        key_padding_mask: (B, N) bool, True = real particle
+        x: (B, N, embed_dim) current particle state (only if conditioned)
+        Returns gate_q, gate_k: (B, N, embed_dim)
         """
-        if key_padding_mask is not None:
-            # zero out contributions from padded neighbors (dim=2 is neighbor j)
-            m = key_padding_mask[:, None, :, None].to(rel.dtype)  # (B,1,N,1)
-            rel = rel * m
-            denom = m.sum(dim=2).clamp(min=1.0)  # (B,1,1), same count for every i
-            summary = rel.sum(dim=2) / denom  # (B, N, D)
+        if self.ctx is not None and x is not None:
+            c = self.ctx(x).to(rel.dtype)                                  # (B, N, D)
+            score = torch.einsum("bijd,bid->bij", rel, c).float() * self.scale
+            if key_padding_mask is not None:
+                score = score.masked_fill(~key_padding_mask[:, None, :], float("-inf"))
+            alpha = torch.softmax(score, dim=-1).to(rel.dtype)             # (B, N, N)
+            summary = torch.einsum("bij,bijd->bid", alpha, rel)            # (B, N, D)
+        elif key_padding_mask is not None:
+            m = key_padding_mask[:, None, :, None].to(rel.dtype)           # (B, 1, N, 1)
+            denom = m.sum(dim=2).clamp(min=1.0)
+            summary = (rel * m).sum(dim=2) / denom
         else:
-            summary = rel.mean(dim=2)  # (B, N, D)
+            summary = rel.mean(dim=2)
 
-        gate_q = self.query_gate(summary)  # (B, N, embed_dim)
-        gate_k = self.key_gate(summary)    # (B, N, embed_dim)
-        return gate_q, gate_k
+        return self._act(self.query_gate(summary)), self._act(self.key_gate(summary))
 
 
 # ----------------------------------------------------------------------
@@ -149,9 +193,8 @@ class RelationalGate(nn.Module):
 # ----------------------------------------------------------------------
 class GatedDualStreamAttention(nn.Module):
     """Multi-head self-attention where Q and K are element-wise gated by
-    relation-derived gates *before* the dot product is computed. V is left
-    ungated so the value stream still carries the raw learned content.
-    """
+    relation-derived gates *before* the dot product. V is left ungated.
+    An optional additive per-head bias (B, H, N, N) can be added to the logits."""
 
     def __init__(self, embed_dim: int, n_heads: int, dropout: float = 0.1):
         super().__init__()
@@ -169,36 +212,36 @@ class GatedDualStreamAttention(nn.Module):
         B, N, D = x.shape
         return x.view(B, N, self.n_heads, self.head_dim).transpose(1, 2)  # (B,H,N,hd)
 
-    def forward(self, x, gate_q, gate_k, key_padding_mask=None):
+    def forward(self, x, gate_q, gate_k, attn_mask=None):
         """
-        x: (B, N, embed_dim)
-        gate_q, gate_k: (B, N, embed_dim) in (0, 1)
-        key_padding_mask: (B, N) bool, True = real particle
+        x: (B, N, embed_dim); gate_q, gate_k: (B, N, embed_dim)
+        attn_mask: bool (B,1,1,N) True=keep, or float additive bias (B,H,N,N)
         """
         B, N, D = x.shape
-
-        q = self.q_proj(x) * gate_q     # multiplicative gating pre-attention
-        k = self.k_proj(x) * gate_k
-        v = self.v_proj(x)
-
-        q = self._split_heads(q)  # (B,H,N,hd)
-        k = self._split_heads(k)
-        v = self._split_heads(v)
-
-        attn_mask = None
-        if key_padding_mask is not None:
-            attn_mask = key_padding_mask[:, None, None, :]  # (B,1,1,N) True=keep
-
-        # fused memory-efficient kernel: never materializes the (B,H,N,N) scores
+        q = self._split_heads(self.q_proj(x) * gate_q)
+        k = self._split_heads(self.k_proj(x) * gate_k)
+        v = self._split_heads(self.v_proj(x))
+        if attn_mask is not None and attn_mask.is_floating_point():
+            attn_mask = attn_mask.to(q.dtype)
         out = F.scaled_dot_product_attention(
             q, k, v, attn_mask=attn_mask,
-            dropout_p=self.dropout.p if self.training else 0.0)  # (B,H,N,hd)
+            dropout_p=self.dropout.p if self.training else 0.0)
         out = out.transpose(1, 2).contiguous().view(B, N, D)
         return self.out_proj(out)
 
 
+def _ffn(cfg):
+    return nn.Sequential(
+        nn.Linear(cfg.embed_dim, cfg.ffn_dim),
+        nn.GELU(),
+        nn.Dropout(cfg.dropout),
+        nn.Linear(cfg.ffn_dim, cfg.embed_dim),
+        nn.Dropout(cfg.dropout),
+    )
+
+
 # ----------------------------------------------------------------------
-# Transformer block: gated attention + FFN, pre-LN residual
+# Transformer block: (optionally per-layer) gate + gated attention + FFN, pre-LN
 # ----------------------------------------------------------------------
 class GDSParTBlock(nn.Module):
     def __init__(self, cfg: GDSParTConfig):
@@ -206,18 +249,44 @@ class GDSParTBlock(nn.Module):
         self.norm1 = nn.LayerNorm(cfg.embed_dim)
         self.attn = GatedDualStreamAttention(cfg.embed_dim, cfg.n_heads, cfg.dropout)
         self.norm2 = nn.LayerNorm(cfg.embed_dim)
-        self.ffn = nn.Sequential(
-            nn.Linear(cfg.embed_dim, cfg.ffn_dim),
-            nn.GELU(),
-            nn.Dropout(cfg.dropout),
-            nn.Linear(cfg.ffn_dim, cfg.embed_dim),
-            nn.Dropout(cfg.dropout),
-        )
+        self.ffn = _ffn(cfg)
+        self.gate = (RelationalGate(cfg.pairwise_embed_dim, cfg.embed_dim, cfg.gate_mode,
+                                    conditioned=True) if cfg.per_layer_gate else None)
 
-    def forward(self, x, gate_q, gate_k, key_padding_mask=None):
-        x = x + self.attn(self.norm1(x), gate_q, gate_k, key_padding_mask)
+    def forward(self, x, rel, gates, attn_mask, key_padding_mask):
+        h = self.norm1(x)
+        if self.gate is not None:
+            gate_q, gate_k = self.gate(rel, key_padding_mask, x=h)
+        else:
+            gate_q, gate_k = gates
+        x = x + self.attn(h, gate_q, gate_k, attn_mask)
         x = x + self.ffn(self.norm2(x))
         return x
+
+
+# ----------------------------------------------------------------------
+# Class-attention block (CaiT / ParT style): only the CLS token is updated
+# ----------------------------------------------------------------------
+class ClassAttentionBlock(nn.Module):
+    def __init__(self, cfg: GDSParTConfig):
+        super().__init__()
+        self.norm1 = nn.LayerNorm(cfg.embed_dim)
+        self.attn = nn.MultiheadAttention(cfg.embed_dim, cfg.n_heads, dropout=cfg.dropout,
+                                          batch_first=True)
+        self.norm2 = nn.LayerNorm(cfg.embed_dim)
+        self.ffn = _ffn(cfg)
+
+    def forward(self, x, cls, key_padding_mask=None):
+        """x: (B, N, D) particle tokens, cls: (B, 1, D). Returns updated cls."""
+        kv = self.norm1(torch.cat([cls, x], dim=1))
+        pad = None
+        if key_padding_mask is not None:
+            keep = torch.cat([key_padding_mask.new_ones(x.shape[0], 1), key_padding_mask], dim=1)
+            pad = ~keep  # nn.MultiheadAttention: True = ignore
+        out, _ = self.attn(kv[:, :1], kv, kv, key_padding_mask=pad, need_weights=False)
+        cls = cls + out
+        cls = cls + self.ffn(self.norm2(cls))
+        return cls
 
 
 # ----------------------------------------------------------------------
@@ -227,17 +296,24 @@ class GDSParT(nn.Module):
     def __init__(self, cfg: GDSParTConfig):
         super().__init__()
         self.cfg = cfg
-        self.particle_embed = ParticleEmbedding(
-            cfg.n_particle_features, cfg.embed_dim, cfg.dropout
-        )
-        self.pairwise_embed = PairwiseEmbedding(
-            cfg.n_pairwise_features, cfg.pairwise_embed_dim
-        )
-        self.rel_gate = RelationalGate(cfg.pairwise_embed_dim, cfg.embed_dim)
+        self.particle_embed = ParticleEmbedding(cfg.n_particle_features, cfg.embed_dim,
+                                                cfg.dropout)
+        self.pairwise_embed = PairwiseEmbedding(cfg.n_pairwise_features,
+                                                cfg.pairwise_embed_dim)
+        # shared (non-conditioned) gate, used only when per_layer_gate=False
+        self.rel_gate = (None if cfg.per_layer_gate else
+                         RelationalGate(cfg.pairwise_embed_dim, cfg.embed_dim, cfg.gate_mode))
+        # per-head additive pairwise bias, shared by all blocks (as in ParT)
+        self.pair_bias = (nn.Linear(cfg.pairwise_embed_dim, cfg.n_heads)
+                          if cfg.pair_bias else None)
 
-        self.blocks = nn.ModuleList(
-            [GDSParTBlock(cfg) for _ in range(cfg.n_layers)]
-        )
+        self.blocks = nn.ModuleList([GDSParTBlock(cfg) for _ in range(cfg.n_layers)])
+
+        if cfg.n_cls_layers > 0:
+            self.cls_token = nn.Parameter(torch.zeros(1, 1, cfg.embed_dim))
+            nn.init.trunc_normal_(self.cls_token, std=0.02)
+            self.cls_blocks = nn.ModuleList(
+                [ClassAttentionBlock(cfg) for _ in range(cfg.n_cls_layers)])
         self.final_norm = nn.LayerNorm(cfg.embed_dim)
 
         self.classifier = nn.Sequential(
@@ -247,20 +323,18 @@ class GDSParT(nn.Module):
             nn.Linear(cfg.embed_dim, cfg.n_classes),
         )
 
-        # gates are recomputed once per forward pass from the pairwise
-        # stream and reused across all layers (cheap, and keeps the
-        # relational signal consistent throughout depth). Set
-        # `regate_every_layer=True` below to recompute per-block instead.
-        self.regate_every_layer = False
-        if self.regate_every_layer:
-            self.rel_gates = nn.ModuleList(
-                [RelationalGate(cfg.pairwise_embed_dim, cfg.embed_dim)
-                 for _ in range(cfg.n_layers)]
-            )
-
-    def _compute_gates(self, pairwise_features, mask):
-        rel = self.pairwise_embed(pairwise_features)        # (B, N, N, pairwise_embed_dim)
-        return self.rel_gate(rel, key_padding_mask=mask)
+    def _pair_inputs(self, pairwise_features, mask):
+        """Relational tensor + attention mask (bool, or additive float bias)."""
+        rel = self.pairwise_embed(pairwise_features)                  # (B, N, N, Dp)
+        attn_mask = None
+        if self.pair_bias is not None:
+            attn_mask = self.pair_bias(rel).permute(0, 3, 1, 2)       # (B, H, N, N)
+            if mask is not None:
+                attn_mask = attn_mask.masked_fill(~mask[:, None, None, :], float("-inf"))
+        elif mask is not None:
+            attn_mask = mask[:, None, None, :]                        # (B, 1, 1, N)
+        gates = None if self.rel_gate is None else self.rel_gate(rel, key_padding_mask=mask)
+        return rel, attn_mask, gates
 
     def forward(self, particle_features, pairwise_features, mask=None):
         """
@@ -269,32 +343,31 @@ class GDSParT(nn.Module):
         mask: (B, N) bool, True = real particle (optional but recommended)
         Returns: logits (B, n_classes)
         """
-        x = self.particle_embed(particle_features)         # (B, N, embed_dim)
-        rel = None
-        if self.regate_every_layer:
-            rel = self.pairwise_embed(pairwise_features)    # (B, N, N, pairwise_embed_dim)
-            gate_q, gate_k = self.rel_gate(rel, key_padding_mask=mask)
-        elif self.training and torch.is_grad_enabled():
-            # the (B, N, N, D) relational tensor dominates activation memory;
-            # recompute it in backward instead of storing it
-            gate_q, gate_k = torch.utils.checkpoint.checkpoint(
-                self._compute_gates, pairwise_features, mask, use_reentrant=False)
+        x = self.particle_embed(particle_features)
+        rel, attn_mask, gates = self._pair_inputs(pairwise_features, mask)
+
+        # the (B, N, N, D) tensors dominate activation memory: during training
+        # each block is recomputed in backward instead of storing its internals
+        ckpt = self.training and torch.is_grad_enabled()
+        for block in self.blocks:
+            if ckpt:
+                x = torch.utils.checkpoint.checkpoint(
+                    block, x, rel, gates, attn_mask, mask, use_reentrant=False)
+            else:
+                x = block(x, rel, gates, attn_mask, mask)
+
+        if self.cfg.n_cls_layers > 0:
+            cls = self.cls_token.expand(x.shape[0], -1, -1)
+            for blk in self.cls_blocks:
+                cls = blk(x, cls, key_padding_mask=mask)
+            pooled = self.final_norm(cls.squeeze(1))
         else:
-            gate_q, gate_k = self._compute_gates(pairwise_features, mask)
-
-        for i, block in enumerate(self.blocks):
-            if self.regate_every_layer:
-                gate_q, gate_k = self.rel_gates[i](rel, key_padding_mask=mask)
-            x = block(x, gate_q, gate_k, key_padding_mask=mask)
-
-        x = self.final_norm(x)
-
-        # masked mean pooling over particle tokens
-        if mask is not None:
-            m = mask.unsqueeze(-1).to(x.dtype)              # (B, N, 1)
-            pooled = (x * m).sum(dim=1) / m.sum(dim=1).clamp(min=1.0)
-        else:
-            pooled = x.mean(dim=1)
+            x = self.final_norm(x)
+            if mask is not None:
+                m = mask.unsqueeze(-1).to(x.dtype)
+                pooled = (x * m).sum(dim=1) / m.sum(dim=1).clamp(min=1.0)
+            else:
+                pooled = x.mean(dim=1)
 
         return self.classifier(pooled)
 

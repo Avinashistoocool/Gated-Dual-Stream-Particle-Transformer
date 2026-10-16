@@ -223,8 +223,16 @@ def train(args):
         embed_dim=args.embed_dim, n_heads=args.n_heads, n_layers=args.n_layers,
         ffn_dim=args.ffn_dim, pairwise_embed_dim=args.pairwise_embed_dim,
         dropout=args.dropout, max_particles=args.max_particles,
+        gate_mode=args.gate_mode, per_layer_gate=bool(args.per_layer_gate),
+        pair_bias=bool(args.pair_bias), n_cls_layers=args.n_cls_layers,
     )
     model = GDSParT(cfg).to(device)
+    ema = None
+    if args.ema_decay > 0:
+        from torch.optim.swa_utils import AveragedModel, get_ema_multi_avg_fn
+        ema = AveragedModel(model, multi_avg_fn=get_ema_multi_avg_fn(args.ema_decay),
+                            use_buffers=True)
+    eval_model = lambda: ema.module if ema is not None else model
     n_params = sum(p.numel() for p in model.parameters())
     _say(f"model parameters: {n_params:,}")
     log.event("model", n_params=n_params, config=vars(cfg))
@@ -259,10 +267,12 @@ def train(args):
     last_path = os.path.join(args.checkpoint_dir, "last.pt")
     if args.resume and os.path.exists(last_path):
         ck = torch.load(last_path, map_location=device, weights_only=False)
-        model.load_state_dict(ck["model_state"])
+        model.load_state_dict(ck.get("raw_model_state", ck["model_state"]))
         optimizer.load_state_dict(ck["optimizer_state"])
         if "scheduler_state" in ck:
             scheduler.load_state_dict(ck["scheduler_state"])
+        if ema is not None and "ema_state" in ck:
+            ema.load_state_dict(ck["ema_state"])
         start_epoch = ck["epoch"] + 1
         global_step = ck.get("global_step", start_epoch * steps_per_epoch)
         best_val_acc = ck.get("best_val_acc", ck.get("val_acc", -1.0))
@@ -270,9 +280,14 @@ def train(args):
         _say(f"resumed from {last_path} at epoch {start_epoch}")
 
     def save(name, epoch, val_metrics):
+        # "model_state" holds the weights used for evaluation (EMA if enabled);
+        # "raw_model_state" keeps the raw weights so training can resume exactly
         torch.save({
             "epoch": epoch, "global_step": global_step,
-            "model_state": model.state_dict(), "optimizer_state": optimizer.state_dict(),
+            "model_state": eval_model().state_dict(),
+            "raw_model_state": model.state_dict(),
+            "ema_state": ema.state_dict() if ema is not None else None,
+            "optimizer_state": optimizer.state_dict(),
             "scheduler_state": scheduler.state_dict(), "config": vars(cfg),
             "val_acc": val_metrics["accuracy"] if val_metrics else None,
             "best_val_acc": best_val_acc, "history": history, "args": vars(args),
@@ -296,7 +311,8 @@ def train(args):
                 sl = slice(s0, s0 + micro)
                 with torch.autocast("cuda", dtype=torch.float16, enabled=use_amp):
                     lg = model(feats[sl], pairs[sl], mask=mask[sl])
-                    l = F.cross_entropy(lg.float(), labels[sl], reduction="sum") / B
+                    l = F.cross_entropy(lg.float(), labels[sl], reduction="sum",
+                                        label_smoothing=args.label_smoothing) / B
                 scaler.scale(l).backward()
                 loss_sum += l.item()
                 logits_all.append(lg.detach())
@@ -307,6 +323,8 @@ def train(args):
             scaler.step(optimizer)
             scaler.update()
             scheduler.step()
+            if ema is not None:
+                ema.update_parameters(model)
             global_step += 1
 
             epoch_loss += loss.item() * labels.size(0)
@@ -328,7 +346,7 @@ def train(args):
         train_loss = epoch_loss / max(epoch_total, 1)
         val_metrics = None
         if val_loader is not None:
-            val_metrics = evaluate(model, val_loader, device, n_classes,
+            val_metrics = evaluate(eval_model(), val_loader, device, n_classes,
                                    class_names=class_names, use_amp=use_amp,
                                    max_pairs=2 * args.max_pairs_per_step)
         dt = time.time() - t0
@@ -357,14 +375,15 @@ def train(args):
 
     results = {"n_params": n_params, "history": history, "args": vars(args)}
     best_path = os.path.join(args.checkpoint_dir, "best.pt")
+    final_model = eval_model()
     if os.path.exists(best_path):
-        model.load_state_dict(torch.load(best_path, map_location=device,
-                                         weights_only=False)["model_state"])
+        final_model.load_state_dict(torch.load(best_path, map_location=device,
+                                               weights_only=False)["model_state"])
         _say("loaded best.pt for final evaluation")
     for tag, loader in (("val (best ckpt)", val_loader), ("TEST (best ckpt)", test_loader)):
         if loader is None:
             continue
-        m = evaluate(model, loader, device, n_classes, class_names=class_names, use_amp=use_amp,
+        m = evaluate(final_model, loader, device, n_classes, class_names=class_names, use_amp=use_amp,
                                    max_pairs=2 * args.max_pairs_per_step)
         _print_metrics(tag, m, class_names)
         if tag.startswith("TEST"):
@@ -415,13 +434,23 @@ def build_argparser():
     ap.add_argument("--resume", action="store_true", help="resume from checkpoint_dir/last.pt")
     ap.add_argument("--log_every", type=int, default=50)
 
+    ap.add_argument("--label_smoothing", type=float, default=0.1)
+    ap.add_argument("--ema_decay", type=float, default=0.999,
+                     help="EMA of weights used for eval/checkpoints (0 = off)")
+
     ap.add_argument("--embed_dim", type=int, default=128)
     ap.add_argument("--n_heads", type=int, default=8)
-    ap.add_argument("--n_layers", type=int, default=6)
+    ap.add_argument("--n_layers", type=int, default=8)
     ap.add_argument("--ffn_dim", type=int, default=512)
     ap.add_argument("--pairwise_embed_dim", type=int, default=64)
     ap.add_argument("--dropout", type=float, default=0.1)
     ap.add_argument("--max_particles", type=int, default=128)
+    # v2 architecture switches (v1 = --gate_mode sigmoid --per_layer_gate 0
+    # --pair_bias 0 --n_cls_layers 0 --n_layers 6)
+    ap.add_argument("--gate_mode", choices=["identity", "sigmoid"], default="identity")
+    ap.add_argument("--per_layer_gate", type=int, default=1)
+    ap.add_argument("--pair_bias", type=int, default=1)
+    ap.add_argument("--n_cls_layers", type=int, default=2)
 
     ap.add_argument("--checkpoint_dir", type=str, default="./checkpoints")
     return ap

@@ -6,3 +6,4 @@ checkpoints/**/*.npz
 checkpoints/
 *.log
 validation/
+runs_index.jsonl
