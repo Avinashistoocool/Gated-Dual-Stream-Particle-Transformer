@@ -37,6 +37,6 @@ echo "job ${PBS_JOBID:-local} on $(hostname) -> $RUN"
 python train_gds_part.py \
   --train "$TRAIN" --val "$DATA/val" --test "$DATA/test" \
   --cache_dir "$CACHE" --epochs "$EPOCHS" --batch_size "$BS" --lr "$LR" \
-  --max_pairs_per_step "$MAX_PAIRS" --checkpoint_dir "$RUN" --resume $EXTRA
+  --max_pairs_per_step "$MAX_PAIRS" --gpu_mem_fraction 0.95 --checkpoint_dir "$RUN" --resume $EXTRA
 
 python make_report.py --run_dir "$RUN"

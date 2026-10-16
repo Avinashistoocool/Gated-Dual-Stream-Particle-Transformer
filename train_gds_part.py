@@ -217,6 +217,10 @@ def train(args):
     torch.manual_seed(args.seed)
     device = "cuda" if torch.cuda.is_available() else "cpu"
     use_amp = args.amp and device == "cuda"
+    if device == "cuda" and args.gpu_mem_fraction < 1:
+        # stops the caching allocator from growing past physical VRAM; on Windows
+        # (WDDM) it otherwise spills into shared system memory and runs ~5x slower
+        torch.cuda.set_per_process_memory_fraction(args.gpu_mem_fraction)
     _say(f"device: {device}  amp: {use_amp}")
 
     cfg = GDSParTConfig(
@@ -430,6 +434,8 @@ def build_argparser():
                      help="max B*N*N per forward pass; larger batches are split into "
                           "micro-batches with gradient accumulation (tune to GPU memory)")
     ap.add_argument("--amp", type=int, default=1, help="mixed precision on CUDA (1/0)")
+    ap.add_argument("--gpu_mem_fraction", type=float, default=0.8,
+                     help="cap on PyTorch's share of GPU memory (1 = no cap)")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--resume", action="store_true", help="resume from checkpoint_dir/last.pt")
     ap.add_argument("--log_every", type=int, default=50)
