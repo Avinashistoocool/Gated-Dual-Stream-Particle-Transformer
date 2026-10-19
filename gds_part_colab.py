@@ -43,6 +43,7 @@ class GDSParTConfig:
         gate_mode       "identity": gate = 1 + tanh(.), zero-initialized so every gate
                         starts at exactly 1 and can amplify (up to 2x) or suppress channels.
                         "sigmoid": v1 behaviour, gate in (0, 1).
+                        "none": no Q/K gating (ablation; with pair_bias this is plain ParT-style attention).
         per_layer_gate  each block owns a RelationalGate whose neighbour aggregation is
                         an attention-weighted sum conditioned on the block's current
                         particle state (v1: one uniform-mean gate shared by all blocks).
@@ -72,7 +73,7 @@ class GDSParTConfig:
         n_cls_layers: int = 2,
     ):
         assert embed_dim % n_heads == 0, "embed_dim must be divisible by n_heads"
-        assert gate_mode in ("identity", "sigmoid")
+        assert gate_mode in ("identity", "sigmoid", "none")
         self.n_particle_features = n_particle_features
         self.n_pairwise_features = n_pairwise_features
         self.n_classes = n_classes
@@ -218,8 +219,10 @@ class GatedDualStreamAttention(nn.Module):
         attn_mask: bool (B,1,1,N) True=keep, or float additive bias (B,H,N,N)
         """
         B, N, D = x.shape
-        q = self._split_heads(self.q_proj(x) * gate_q)
-        k = self._split_heads(self.k_proj(x) * gate_k)
+        q, k = self.q_proj(x), self.k_proj(x)
+        if gate_q is not None:
+            q, k = q * gate_q, k * gate_k
+        q, k = self._split_heads(q), self._split_heads(k)
         v = self._split_heads(self.v_proj(x))
         if attn_mask is not None and attn_mask.is_floating_point():
             attn_mask = attn_mask.to(q.dtype)
@@ -251,14 +254,15 @@ class GDSParTBlock(nn.Module):
         self.norm2 = nn.LayerNorm(cfg.embed_dim)
         self.ffn = _ffn(cfg)
         self.gate = (RelationalGate(cfg.pairwise_embed_dim, cfg.embed_dim, cfg.gate_mode,
-                                    conditioned=True) if cfg.per_layer_gate else None)
+                                    conditioned=True)
+                     if cfg.per_layer_gate and cfg.gate_mode != "none" else None)
 
     def forward(self, x, rel, gates, attn_mask, key_padding_mask):
         h = self.norm1(x)
         if self.gate is not None:
             gate_q, gate_k = self.gate(rel, key_padding_mask, x=h)
         else:
-            gate_q, gate_k = gates
+            gate_q, gate_k = gates if gates is not None else (None, None)
         x = x + self.attn(h, gate_q, gate_k, attn_mask)
         x = x + self.ffn(self.norm2(x))
         return x
@@ -301,7 +305,7 @@ class GDSParT(nn.Module):
         self.pairwise_embed = PairwiseEmbedding(cfg.n_pairwise_features,
                                                 cfg.pairwise_embed_dim)
         # shared (non-conditioned) gate, used only when per_layer_gate=False
-        self.rel_gate = (None if cfg.per_layer_gate else
+        self.rel_gate = (None if cfg.per_layer_gate or cfg.gate_mode == "none" else
                          RelationalGate(cfg.pairwise_embed_dim, cfg.embed_dim, cfg.gate_mode))
         # per-head additive pairwise bias, shared by all blocks (as in ParT)
         self.pair_bias = (nn.Linear(cfg.pairwise_embed_dim, cfg.n_heads)

@@ -7,3 +7,6 @@ checkpoints/
 *.log
 validation/
 runs_index.jsonl
+ablations/**/*.pt
+ablations/**/*.npz
+ablations/**/*.jsonl

@@ -255,6 +255,10 @@ def train(args):
         train_loader, val_loader = loaders["train"], loaders.get("val")
         test_loader = loaders.get("test")
         class_names = CLASS_LIST
+        if args.cache_only:
+            _say("caches built; exiting (--cache_only)")
+            log.mark_done({})
+            return
     n_classes = len(class_names)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
@@ -422,6 +426,8 @@ def build_argparser():
     ap.add_argument("--test_jets_per_class", type=int, default=None)
     ap.add_argument("--cache_dir", type=str, default="./cache",
                      help="where preprocessed per-particle memmaps are stored")
+    ap.add_argument("--cache_only", action="store_true",
+                     help="build the train/val/test caches and exit (no training)")
 
     ap.add_argument("--epochs", type=int, default=10)
     ap.add_argument("--batch_size", type=int, default=512)
@@ -453,7 +459,7 @@ def build_argparser():
     ap.add_argument("--max_particles", type=int, default=128)
     # v2 architecture switches (v1 = --gate_mode sigmoid --per_layer_gate 0
     # --pair_bias 0 --n_cls_layers 0 --n_layers 6)
-    ap.add_argument("--gate_mode", choices=["identity", "sigmoid"], default="identity")
+    ap.add_argument("--gate_mode", choices=["identity", "sigmoid", "none"], default="identity")
     ap.add_argument("--per_layer_gate", type=int, default=1)
     ap.add_argument("--pair_bias", type=int, default=1)
     ap.add_argument("--n_cls_layers", type=int, default=2)
