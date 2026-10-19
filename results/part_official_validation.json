@@ -1,0 +1,101 @@
+{
+  "official_part_on_our_pipeline": {
+    "accuracy": 0.861195,
+    "auc_macro_ovo": 0.9877070914189733,
+    "rejection": {
+      "Hbb_Rej50": 4996.5,
+      "Hcc_Rej50": 6662.0,
+      "Hgg_Rej50": 139.76223776223776,
+      "H4q_Rej50": 1175.6470588235295,
+      "Hqql_Rej99": 9993.0,
+      "Tbqq_Rej50": Infinity,
+      "Tbl_Rej99.5": 9993.0,
+      "Wqq_Rej50": 525.9473684210526,
+      "Zqq_Rej50": 377.0943396226415
+    },
+    "n_jets": 200000,
+    "class_counts": [
+      19986,
+      20119,
+      20033,
+      19838,
+      20001,
+      19951,
+      20037,
+      20240,
+      19834,
+      19961
+    ]
+  },
+  "paper": {
+    "accuracy": 0.861,
+    "auc_macro_ovo": 0.9877,
+    "rejection": {
+      "Hbb_Rej50": 10638,
+      "Hcc_Rej50": 4149,
+      "Hgg_Rej50": 123,
+      "H4q_Rej50": 1864,
+      "Hqql_Rej99": 5479,
+      "Tbqq_Rej50": 32787,
+      "Tbl_Rej99.5": 15873,
+      "Wqq_Rej50": 543,
+      "Zqq_Rej50": 402
+    }
+  },
+  "rejection_comparison": [
+    {
+      "metric": "Hbb_Rej50",
+      "ours": 4996.5,
+      "paper": 10638,
+      "ratio": 0.46968415115623235
+    },
+    {
+      "metric": "Hcc_Rej50",
+      "ours": 6662.0,
+      "paper": 4149,
+      "ratio": 1.6056881176187032
+    },
+    {
+      "metric": "Hgg_Rej50",
+      "ours": 139.76223776223776,
+      "paper": 123,
+      "ratio": 1.136278355790551
+    },
+    {
+      "metric": "H4q_Rej50",
+      "ours": 1175.6470588235295,
+      "paper": 1864,
+      "ratio": 0.6307119414289322
+    },
+    {
+      "metric": "Hqql_Rej99",
+      "ours": 9993.0,
+      "paper": 5479,
+      "ratio": 1.8238729695199853
+    },
+    {
+      "metric": "Tbqq_Rej50",
+      "ours": Infinity,
+      "paper": 32787,
+      "ratio": Infinity
+    },
+    {
+      "metric": "Tbl_Rej99.5",
+      "ours": 9993.0,
+      "paper": 15873,
+      "ratio": 0.6295596295596295
+    },
+    {
+      "metric": "Wqq_Rej50",
+      "ours": 525.9473684210526,
+      "paper": 543,
+      "ratio": 0.9685955219540564
+    },
+    {
+      "metric": "Zqq_Rej50",
+      "ours": 377.0943396226415,
+      "paper": 402,
+      "ratio": 0.9380456209518445
+    }
+  ]
+}

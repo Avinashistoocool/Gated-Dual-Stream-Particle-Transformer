@@ -10,3 +10,5 @@ runs_index.jsonl
 ablations/**/*.pt
 ablations/**/*.npz
 ablations/**/*.jsonl
+ablations_noema/
+ablations/

@@ -151,6 +151,8 @@ python run_ablations.py --train $DATA/train --val $DATA/val --cache_dir $DATA/ca
 python run_ablations.py ... --only v2_full,no_gate   # run a subset of variants
 ```
 
+For short runs (fewer than ~20k steps), add `--extra "--ema_decay 0"`, because an EMA with decay 0.999 lags behind and distorts the comparison. Results from 2026-10-19 are in `results/ablations/README.md`.
+
 Every variant uses the same data and optimizer, and the script writes `ablations/ABLATIONS.md`. Completed variants are skipped when you run it again. Variants:
 
 | Name | What changes |
