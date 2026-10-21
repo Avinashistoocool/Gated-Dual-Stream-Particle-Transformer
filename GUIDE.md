@@ -25,7 +25,19 @@ git clone https://github.com/Avinashistoocool/Gated-Dual-Stream-Particle-Transfo
 cd gds_part
 ```
 
-The repository does not contain checkpoints (`*.pt`) or caches. To continue an existing run on another machine, copy its `checkpoints/<run>/last.pt` and train with `--resume` and the same `--checkpoint_dir`.
+The repository does not contain caches, and normally no checkpoints (`*.pt`). To continue an existing run on another machine, copy its `checkpoints/<run>/last.pt` and train with `--resume` and the same `--checkpoint_dir`.
+
+**Exception: the 20-epoch 10M run is committed so it can be resumed from a clone.**
+`checkpoints/v2_shared_10M_20ep/last.pt` holds the state after epoch 3 of 20 (val acc 0.8353, model + EMA + optimizer + scheduler + history). To continue it, point `$DATA` at your JetClass folder (`train_10M`, `val`, `test`) and run:
+
+```bash
+python train_gds_part.py --train $DATA/train_10M --val $DATA/val --test $DATA/test \
+  --cache_dir $DATA/cache --epochs 20 --batch_size 512 --lr 1e-3 \
+  --per_layer_gate 0 --ema_decay 0.9999 --log_every 500 \
+  --checkpoint_dir ./checkpoints/v2_shared_10M_20ep --resume
+```
+
+Keep `--epochs 20`, `--batch_size 512` and the model flags unchanged, otherwise the LR schedule or the checkpoint will not match. The first run on a new machine rebuilds the cache in `--cache_dir`. The finished 10-epoch model (test acc 0.8484, AUC 0.9853) is in `checkpoints/v2_shared_10M_10ep/best.pt`, with its report in `results/v2_shared_10M_10ep/`.
 
 ---
 
