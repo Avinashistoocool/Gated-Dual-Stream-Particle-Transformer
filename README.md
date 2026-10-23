@@ -14,6 +14,19 @@ where $$U_{ij}$$ denotes pairwise particle features and $$\psi(U)$$ is a learned
 
 GDS-ParT takes a different route. It embeds pairwise features into a relational tensor, aggregates those relations into per-particle gates, and uses the resulting gates to scale query and key channels before the dot product. This moves physics fusion from additive logit biasing into multiplicative feature-space conditioning.[1][2]
 
+## Status
+
+| Run | Train jets | Params | Test accuracy | Test AUC | Notes |
+|---|---|---|---|---|---|
+| v2, 10 epochs | 10M | 2.07M | **0.8484** | **0.9853** | [full report](results/v2_shared_10M_10ep/RESULTS.md) |
+| v2, 20 epochs | 10M | 2.07M | in progress | | epoch 8 of 20 saved; val acc 0.8473. Resumable from `checkpoints/v2_shared_10M_20ep/last.pt` ([GUIDE.md](GUIDE.md) §1) |
+
+For comparison, ParticleNet trained on 10M jets reaches 0.837 accuracy and 0.9837 AUC in the ParT paper.
+
+To set up a new machine (lab workstation, HPC, Colab) and find out where the JetClass data must go, see **[GUIDE.md](GUIDE.md)**.
+
+**Follow-up project:** [GDS-ParT-MoE](https://github.com/Avinashistoocool/GDS-parT-MoE) replaces the particle FFNs with a per-particle Mixture-of-Experts and measures what physics each expert learns.
+
 ## Why this is different
 
 The main goal of this project is to build an original “proof of work” model rather than reproduce the official implementation. The official repository provides the reference ParT codebase and JetClass dataset tooling, but this project intentionally explores a different inductive bias for combining particle-level and pairwise information.[2]
@@ -239,11 +252,11 @@ That statement captures the central architectural novelty relative to the origin
 
 ## Suggested next steps
 
-- Add masking for variable particle multiplicity.
+- Finish the 20-epoch 10M run (resume from epoch 8).
 - Visualize learned gates for interpretability.
 - Compare gated fusion against a small ParT-like baseline.
-- Measure per-class gains on difficult JetClass categories.
 - Test whether gate asymmetry for queries vs. keys improves performance.
+- Per-particle expert interpretability is being developed in [GDS-ParT-MoE](https://github.com/Avinashistoocool/GDS-parT-MoE).
 
 ## Reference sources
 

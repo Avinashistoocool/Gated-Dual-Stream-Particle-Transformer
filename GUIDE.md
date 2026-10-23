@@ -28,7 +28,7 @@ cd gds_part
 The repository does not contain caches, and normally no checkpoints (`*.pt`). To continue an existing run on another machine, copy its `checkpoints/<run>/last.pt` and train with `--resume` and the same `--checkpoint_dir`.
 
 **Exception: the 20-epoch 10M run is committed so it can be resumed from a clone.**
-`checkpoints/v2_shared_10M_20ep/last.pt` holds the state after epoch 3 of 20 (val acc 0.8353, model + EMA + optimizer + scheduler + history). To continue it, point `$DATA` at your JetClass folder (`train_10M`, `val`, `test`) and run:
+`checkpoints/v2_shared_10M_20ep/last.pt` holds the state after epoch 8 of 20 (val acc 0.8473, model + EMA + optimizer + scheduler + history). To continue it, point `$DATA` at your JetClass folder (`train_10M`, `val`, `test`; see section 3) and run:
 
 ```bash
 python train_gds_part.py --train $DATA/train_10M --val $DATA/val --test $DATA/test \
@@ -77,11 +77,29 @@ python train_gds_part.py --synthetic --epochs 1 --synthetic_batches 4 --batch_si
 
 ## 3. Get JetClass data
 
+`$DATA` is any folder you choose; it is not a fixed path. Set it before running the commands, for example `export DATA=/data/$USER/JetClass` (Linux) or `$env:DATA="D:\JetClass"` (PowerShell). Under it the trainer expects:
+
+```
+$DATA/
+├── train_10M/   # 100 ROOT files, 10 per class (~14 GB)
+├── val/         # 10 ROOT files (~1.4 GB)
+├── test/        # 10 ROOT files (~1.4 GB)
+└── cache/       # created by the trainer (~25 GB for the splits above)
+```
+
+**Option A: copy from a machine that already has it (fastest).** Copy `train_10M`, `val` and `test` (about 17 GB). You can also copy `cache` (about 25 GB) to skip the 20–40 min conversion. The cache directory names include the split folder name (for example `cache/train_train_10M_all_128`), so keep the folder names unchanged if you copy the cache.
+
+```bash
+rsync -avP user@laptop:/path/to/JetClass/ $DATA/          # or copy from an external drive
+```
+
+**Option B: download from Zenodo.**
 Each JetClass ROOT file contains 100k jets of one class. `fetch_jetclass_subset.py` downloads only the files you request from Zenodo, using HTTP range reads, so you do not need to download the full 190 GB tarballs.
 
 ```bash
 # 10M train (10 files/class), 1M val, 1M test  -> $DATA/{train,val,test}
 python data/fetch_jetclass_subset.py --out $DATA --train_files 10 --val_files 1 --test_files 1
+mv $DATA/train $DATA/train_10M      # match the folder name used by the committed 20-epoch run
 # quick experiments: --train_files 1  (1M jets)
 ```
 
