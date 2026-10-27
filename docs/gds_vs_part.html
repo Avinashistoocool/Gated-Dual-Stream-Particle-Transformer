@@ -757,7 +757,75 @@
     </div>
   </details>
 
-  <!-- DOUBTS:APPEND (new doubts go above this line, numbered Q7, Q8, ...) -->
+  <details class="doubt" data-tags="architecture">
+    <summary><span class="qn">Q7</span><span class="qt">How do the particle and pairwise embeddings work, using the 17 features?</span><span class="meta"><span class="tag gds">architecture</span><span class="chev">▶</span></span></summary>
+    <div class="ans">
+      <div class="tldr"><b>Short answer:</b> each particle's 17 hand-made physics numbers go through a small MLP (LayerNorm → 17→128 → GELU → 128→128). The result is a 128-number learned description the transformer can work with. Separately, every <i>pair</i> of particles gets 4 physics numbers (Δ, k<sub>T</sub>, z, m²), which another MLP (4→64 → GELU → 64→64) turns into a 64-number relation vector. The 17 features never go into the pair embedding: pairs are computed from the raw 4-momenta.</div>
+
+      <h4>A worked jet</h4>
+      <p>Take a jet with p<sub>T,jet</sub> = 500 GeV and E<sub>jet</sub> = 600 GeV, and two of its particles:</p>
+      <ul>
+        <li><b>A</b>: a π⁺ (charged hadron) with p<sub>T</sub> = 80 GeV, Δη = +0.05, Δφ = −0.03, and a slightly displaced track (d<sub>0</sub> = 0.02).</li>
+        <li><b>B</b>: a photon with p<sub>T</sub> = 30 GeV, Δη = −0.10, Δφ = +0.12, and no track.</li>
+      </ul>
+
+      <h4>Step 1: the 17 particle features (computed from data, not learned)</h4>
+      <table>
+        <tr><th>#</th><th>feature</th><th>formula</th><th class="n">A (π⁺)</th><th class="n">B (γ)</th><th>what the number tells the model</th></tr>
+        <tr><td>0</td><td>log p<sub>T</sub></td><td>(ln p<sub>T</sub> − 1.7)·0.7</td><td class="n">1.88</td><td class="n">1.19</td><td>A is harder</td></tr>
+        <tr><td>1</td><td>log E</td><td>(ln E − 2.0)·0.7</td><td class="n">1.77</td><td class="n">1.04</td><td>energy scale</td></tr>
+        <tr><td>2</td><td>log p<sub>T</sub>/p<sub>T,jet</sub></td><td>(ln(p<sub>T</sub>/p<sub>T,jet</sub>) + 4.7)·0.7</td><td class="n">2.01</td><td class="n">1.32</td><td>A carries 16% of the jet p<sub>T</sub>, B carries 6%</td></tr>
+        <tr><td>3</td><td>log E/E<sub>jet</sub></td><td>(ln(E/E<sub>jet</sub>) + 4.7)·0.7</td><td class="n">1.98</td><td class="n">1.25</td><td>energy share</td></tr>
+        <tr><td>4</td><td>ΔR to axis</td><td>(ΔR − 0.2)·4</td><td class="n">−0.57</td><td class="n">−0.18</td><td>both near the core; B is a bit wider</td></tr>
+        <tr><td>5</td><td>Δη</td><td>raw</td><td class="n">0.05</td><td class="n">−0.10</td><td rowspan="2">position in the jet "image"</td></tr>
+        <tr><td>6</td><td>Δφ</td><td>raw</td><td class="n">−0.03</td><td class="n">0.12</td></tr>
+        <tr><td>7</td><td>charge</td><td>−1 / 0 / +1</td><td class="n">1</td><td class="n">0</td><td>A leaves a track</td></tr>
+        <tr><td>8</td><td>is charged hadron</td><td>one-hot</td><td class="n">1</td><td class="n">0</td><td rowspan="5">particle species: exactly one of the five is 1</td></tr>
+        <tr><td>9</td><td>is neutral hadron</td><td>one-hot</td><td class="n">0</td><td class="n">0</td></tr>
+        <tr><td>10</td><td>is photon</td><td>one-hot</td><td class="n">0</td><td class="n">1</td></tr>
+        <tr><td>11</td><td>is electron</td><td>one-hot</td><td class="n">0</td><td class="n">0</td></tr>
+        <tr><td>12</td><td>is muon</td><td>one-hot</td><td class="n">0</td><td class="n">0</td></tr>
+        <tr><td>13</td><td>tanh d<sub>0</sub></td><td>tanh(d<sub>0</sub>)</td><td class="n">0.02</td><td class="n">0</td><td rowspan="4">track displacement from the collision point and its uncertainty. Large values hint at b/c decays. Neutrals have none.</td></tr>
+        <tr><td>14</td><td>σ<sub>d0</sub></td><td>clip(0,1)</td><td class="n">0.01</td><td class="n">0</td></tr>
+        <tr><td>15</td><td>tanh d<sub>z</sub></td><td>tanh(d<sub>z</sub>)</td><td class="n">0.03</td><td class="n">0</td></tr>
+        <tr><td>16</td><td>σ<sub>dz</sub></td><td>clip(0,1)</td><td class="n">0.02</td><td class="n">0</td></tr>
+      </table>
+      <p>The shifts and scales (−1.7, ×0.7, +4.7, …) come from the official JetClass configuration. They bring every feature into roughly −5…5 so that no single feature dominates. Logs are used because momenta span several orders of magnitude.</p>
+
+      <h4>Step 2: the particle embedding (learned), 17 → 128</h4>
+      <div class="eq">x<sub>i</sub> = W<sub>2</sub> · GELU( W<sub>1</sub> · LN(f<sub>i</sub>) + b<sub>1</sub> ) + b<sub>2</sub>, &nbsp; W<sub>1</sub> ∈ ℝ<sup>128×17</sup>, W<sub>2</sub> ∈ ℝ<sup>128×128</sup></div>
+      <ol>
+        <li><b>LayerNorm(17)</b> over A's 17 numbers. They have mean 0.54 and variance 0.71. After centring and scaling, the momentum features sit at about +1.6 and the zeros at about −0.63. The learned γ<sub>c</sub> and β<sub>c</sub> then re-weight each of the 17 features individually.</li>
+        <li><b>W<sub>1</sub> (17→128).</b> Each of the 128 outputs is a weighted sum of all 17 inputs: h<sub>k</sub> = Σ<sub>c</sub> W<sub>1,kc</sub> f̂<sub>c</sub> + b<sub>k</sub>. One unit might learn "hard <i>and</i> charged <i>and</i> displaced", which is a b-hadron decay-product detector; another might learn "photon at wide angle".</li>
+        <li><b>GELU</b> keeps units that fire positively and suppresses negative ones. This nonlinearity lets the units become feature <i>combinations</i> rather than simple rescalings.</li>
+        <li><b>W<sub>2</sub> (128→128)</b> mixes those detectors into the final 128-number embedding x<sub>A</sub>.</li>
+      </ol>
+      <p>The same weights are applied to every particle. B goes through exactly the same MLP but, with different inputs, lands in a different region of the 128-dimensional space. Nobody labels the 128 channels; their meaning is whatever helps the loss. In the MoE study, layer-0 experts split cleanly by charge and species, which shows that this embedding keeps those features well separated.</p>
+
+      <h4>Step 3: the 4 pairwise features for (A, B), from 4-momenta</h4>
+      <table>
+        <tr><th>feature</th><th>formula</th><th class="n">value</th><th class="n">log (the input)</th><th>meaning</th></tr>
+        <tr><td>Δ</td><td>√(Δy² + Δφ²)</td><td class="n">0.212</td><td class="n">−1.55</td><td>the opening angle between A and B</td></tr>
+        <tr><td>k<sub>T</sub></td><td>min(p<sub>T,A</sub>, p<sub>T,B</sub>)·Δ</td><td class="n">6.36 GeV</td><td class="n">1.85</td><td>how hard the softer particle "kicks" sideways</td></tr>
+        <tr><td>z</td><td>min/(p<sub>T,A</sub>+p<sub>T,B</sub>)</td><td class="n">0.273</td><td class="n">−1.30</td><td>a fairly balanced 73/27 momentum split</td></tr>
+        <tr><td>m²</td><td>(p<sub>A</sub>+p<sub>B</sub>)²</td><td class="n">108 GeV² (m ≈ 10.4 GeV)</td><td class="n">4.68</td><td>the pair's invariant mass</td></tr>
+      </table>
+      <p>U<sub>AB</sub> = (−1.55, 1.85, −1.30, 4.68). These come from (p<sub>x</sub>, p<sub>y</sub>, p<sub>z</sub>, E) and not from the 17 features, so they are exact and boost-invariant along the beam. U<sub>BA</sub> = U<sub>AB</sub>, and U<sub>AA</sub> = 0.</p>
+
+      <h4>Step 4: the pairwise embedding (learned), 4 → 64</h4>
+      <div class="eq">r<sub>AB</sub> = W<sub>4</sub> · GELU( W<sub>3</sub> · U<sub>AB</sub> + b<sub>3</sub> ) + b<sub>4</sub>, &nbsp; W<sub>3</sub> ∈ ℝ<sup>64×4</sup>, W<sub>4</sub> ∈ ℝ<sup>64×64</sup></div>
+      <p>Each of the 64 hidden units is a learned threshold on a combination of the 4 logs. One might fire for "small Δ with large k<sub>T</sub>" (a hard collinear splitting), another for "m near m<sub>W</sub> ≈ 80 GeV", another for "very soft z". The same MLP runs on all N×N pairs, giving <span class="shape">(N, N, 64)</span>.</p>
+
+      <h4>Step 5: where the two embeddings go</h4>
+      <div class="grid2">
+        <div class="card"><h4>particle embedding x<sub>i</sub> (128)</h4>Becomes the residual stream. LayerNorm, then W<sub>Q</sub>, W<sub>K</sub>, W<sub>V</sub> turn it into queries, keys and values in every block.</div>
+        <div class="card"><h4>pair embedding r<sub>ij</sub> (64)</h4>Used twice. <b>ParT bias:</b> b<sub>ij</sub> = W<sub>bias</sub>r<sub>ij</sub> adds to the A→B score. <b>GDS gate:</b> A averages r<sub>Aj</sub> over all its partners j, and the result becomes the gates g<sup>Q</sup><sub>A</sub>, g<sup>K</sup><sub>A</sub> that rescale A's query and key channels.</div>
+      </div>
+      <p class="asked">asked 27 Oct 2026 · see <a href="#c1">Chapter 1</a>, <a href="#c4">Chapter 4</a></p>
+    </div>
+  </details>
+
+  <!-- DOUBTS:APPEND (new doubts go above this line, numbered Q8, Q9, ...) -->
   </div>
   <p class="small" id="dEmpty" hidden>No doubts match that search.</p>
 </section>
