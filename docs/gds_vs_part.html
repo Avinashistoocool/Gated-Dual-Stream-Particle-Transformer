@@ -734,7 +734,30 @@
     </div>
   </details>
 
-  <!-- DOUBTS:APPEND (new doubts go above this line, numbered Q6, Q7, ...) -->
+  <details class="doubt" data-tags="architecture">
+    <summary><span class="qn">Q6</span><span class="qt">What is the symbol in a circle: ⊙ vs ⊗ (and ⊕)?</span><span class="meta"><span class="tag gds">architecture</span><span class="chev">▶</span></span></summary>
+    <div class="ans">
+      <div class="tldr"><b>Short answer:</b> this page only uses <b>⊙ (a dot in a circle)</b>, the <b>element-wise or Hadamard product</b>: multiply matching entries, and the shape stays the same. <b>⊗ (a cross in a circle)</b> is a different operation, the <b>outer or tensor product</b>, which builds a bigger tensor out of every combination of entries.</div>
+      <table>
+        <tr><th>Symbol</th><th>Name</th><th>Rule</th><th>Shapes</th><th>Example with a = (1, 2, 3), b = (4, 5, 6)</th></tr>
+        <tr><td style="font-size:22px">⊙</td><td>Hadamard / element-wise product</td><td>(a⊙b)<sub>c</sub> = a<sub>c</sub>b<sub>c</sub></td><td>(D) ⊙ (D) → (D)</td><td>(4, 10, 18)</td></tr>
+        <tr><td style="font-size:22px">·</td><td>dot / inner product</td><td>a·b = Σ<sub>c</sub> a<sub>c</sub>b<sub>c</sub></td><td>(D) · (D) → scalar</td><td>4 + 10 + 18 = 32</td></tr>
+        <tr><td style="font-size:22px">⊗</td><td>outer / tensor (Kronecker) product</td><td>(a⊗b)<sub>ij</sub> = a<sub>i</sub>b<sub>j</sub></td><td>(D) ⊗ (D) → (D, D)</td><td>[[4,5,6],[8,10,12],[12,15,18]]</td></tr>
+        <tr><td style="font-size:22px">⊕</td><td>direct sum / concatenation (or XOR)</td><td>a⊕b = (a, b)</td><td>(D) ⊕ (D) → (2D)</td><td>(1, 2, 3, 4, 5, 6)</td></tr>
+      </table>
+      <p>The dot product is just the Hadamard product followed by a sum: a·b = Σ(a⊙b). The diagonal of a⊗b is a⊙b.</p>
+      <h4>Where each one appears in the model</h4>
+      <ul>
+        <li><b>⊙ (the GDS gates):</b> q′<sub>i</sub> = q<sub>i</sub> ⊙ g<sup>Q</sup><sub>i</sub>. Each of the 128 query channels gets its own multiplier, and q′ is still a 128-vector. LayerNorm's γ ⊙ (x − μ)/σ works the same way. In code this is simply <code>q * gate_q</code>.</li>
+        <li><b>· (attention scores):</b> s<sub>ij</sub> = q′<sub>i</sub>·k′<sub>j</sub>/√d, which gives one number per pair.</li>
+        <li><b>⊗ (implicitly, the N×N structure):</b> the score matrix QKᵀ is a sum of outer products, Σ<sub>c</sub> q<sub>:,c</sub> ⊗ k<sub>:,c</sub>. Inside one channel, the gate factor for every pair is g<sup>Q</sup><sub>:,c</sub> ⊗ g<sup>K</sup><sub>:,c</sub>, an outer product of two N-vectors. This is the "rank-1 per channel" limitation from <a href="#c8">Chapter 8</a>: the gates can only build pair weights that factorise as (something about i) × (something about j), whereas the ParT bias b<sub>ij</sub> can be any N×N table.</li>
+        <li><b>⊕:</b> not used in the formulas. Concatenating the 8 head outputs back to 128 channels is a direct sum.</li>
+      </ul>
+      <p class="asked">asked 27 Oct 2026 · see <a href="#c2">Chapter 2</a>, <a href="#c8">Chapter 8</a></p>
+    </div>
+  </details>
+
+  <!-- DOUBTS:APPEND (new doubts go above this line, numbered Q7, Q8, ...) -->
   </div>
   <p class="small" id="dEmpty" hidden>No doubts match that search.</p>
 </section>
