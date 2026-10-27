@@ -918,7 +918,73 @@
     </div>
   </details>
 
-  <!-- DOUBTS:APPEND (new doubts go above this line, numbered Q10, Q11, ...) -->
+  <details class="doubt" data-tags="architecture">
+    <summary><span class="qn">Q10</span><span class="qt">GDS-ParT and its gates in ASD-STE100 (Simplified Technical English)</span><span class="meta"><span class="tag gds">architecture</span><span class="chev">▶</span></span></summary>
+    <div class="ans">
+      <div class="tldr"><b>Note:</b> this text follows the ASD-STE100 rules. Sentences are short and in the active voice, each word has one meaning, instructions use the imperative, and each instruction gives one action.</div>
+
+      <h4>1. Function of the model</h4>
+      <ul>
+        <li>The model identifies the source of a particle jet.</li>
+        <li>A jet is a group of particles. These particles come from one quark or one gluon.</li>
+        <li>The model uses 17 values for each particle.</li>
+        <li>The model also uses 4 values for each pair of particles.</li>
+        <li>The model gives one score for each of the 10 jet classes.</li>
+      </ul>
+
+      <h4>2. Attention</h4>
+      <ul>
+        <li>Each particle makes a query (Q) and a key (K).</li>
+        <li>The model compares the query of particle i with the key of particle j.</li>
+        <li>This comparison gives a score.</li>
+        <li>A high score tells particle i to use more data from particle j.</li>
+      </ul>
+
+      <h4>3. ParT</h4>
+      <ul>
+        <li>ParT calculates one value from the data of each pair. This value is the "bias".</li>
+        <li>ParT adds the bias to the score of that pair.</li>
+        <li>The bias is different for each pair.</li>
+      </ul>
+
+      <h4>4. GDS-ParT</h4>
+      <ul>
+        <li>GDS-ParT makes two gates for each particle.</li>
+        <li>The model calculates the gates from the pair data of that particle.</li>
+        <li>Each gate has 128 values. Each value is between 0 and 2.</li>
+        <li>The model multiplies each Q value and each K value by the related gate value.</li>
+        <li>Then the model calculates the score.</li>
+        <li>At the start of training, all gate values are 1. Thus, the gates have no effect at the start.</li>
+        <li>Version 2 of GDS-ParT also uses the ParT bias.</li>
+      </ul>
+
+      <h4>5. Tests and results</h4>
+      <table>
+        <tr><th>Test</th><th>Procedure</th><th>Result</th></tr>
+        <tr><td>1</td><td>Set all gates in the trained model to 1.</td><td>The accuracy decreases from 84.8% to 75.2%.</td></tr>
+        <tr><td>2</td><td>Train a model without gates. Keep all other settings the same.</td><td>The accuracy is 69.4%. The model with gates has 69.7%. The difference is too small to be important.</td></tr>
+        <tr><td>3</td><td>Train a model with gates and without the bias.</td><td>The accuracy is 62.2%. This is 7 points lower.</td></tr>
+      </table>
+
+      <h4>6. Conclusion</h4>
+      <ul>
+        <li>The trained model uses the gates. Test 1 shows this.</li>
+        <li>The gates do not give better accuracy than the bias. Test 2 shows this.</li>
+        <li>The bias is more important than the gates. Test 3 shows this.</li>
+      </ul>
+
+      <h4>7. Next procedure</h4>
+      <ol>
+        <li>Train a model without gates on 10 million jets.</li>
+        <li>Train each model two or three times. Use a different random seed each time.</li>
+        <li>Compare the accuracy of the two models for each jet class.</li>
+        <li>Compare the gate values with the physics data of each particle.</li>
+      </ol>
+      <p class="asked">asked 27 Oct 2026 · the same content in full detail: <a href="#q1">Q1</a>, <a href="#q9">Q9</a></p>
+    </div>
+  </details>
+
+  <!-- DOUBTS:APPEND (new doubts go above this line, numbered Q11, Q12, ...) -->
   </div>
   <p class="small" id="dEmpty" hidden>No doubts match that search.</p>
 </section>
