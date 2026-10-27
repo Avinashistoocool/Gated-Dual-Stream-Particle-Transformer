@@ -1,0 +1,833 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ParT vs GDS-ParT: a visual documentary</title>
+<style>
+  :root {
+    --bg: #0b0d10; --panel: #12161b; --panel2: #171c22; --ink: #e8ecf1; --sub: #a9b3bf; --muted: #6f7b88;
+    --line: #26303a; --blue: #5aa9ff; --orange: #ff9d4d; --green: #5fd18b; --pink: #ff6fa8; --violet: #a98bff; --yellow: #ffd166;
+    --code: #0f1317; --mono: ui-monospace, "Cascadia Code", Consolas, Menlo, monospace;
+    --serif: "Cambria Math", "STIX Two Math", "Latin Modern Math", Cambria, Georgia, serif;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --bg: #fbfbf8; --panel: #ffffff; --panel2: #f3f4f1; --ink: #15191e; --sub: #3c4652; --muted: #6b7682;
+      --line: #dfe3e6; --code: #f4f5f2; --blue: #1f6fd1; --orange: #d1661a; --green: #1f8f4e; --pink: #c42d6c; --violet: #6a4bd6; --yellow: #a07400; }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.65 system-ui, "Segoe UI", Inter, sans-serif; }
+  a { color: var(--blue); }
+  nav.toc { position: fixed; top: 0; left: 0; bottom: 0; width: 250px; padding: 22px 16px; border-right: 1px solid var(--line);
+    background: var(--panel); overflow-y: auto; font-size: 13.5px; }
+  nav.toc b { display: block; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+  nav.toc a { display: block; color: var(--sub); text-decoration: none; padding: 4px 8px; border-radius: 6px; }
+  nav.toc a:hover, nav.toc a:focus-visible { background: var(--panel2); color: var(--ink); outline: none; }
+  nav.toc a.on { color: var(--ink); background: var(--panel2); box-shadow: inset 2px 0 0 var(--blue); }
+  main { margin-left: 250px; padding: 0 clamp(18px, 5vw, 72px) 120px; max-width: 1180px; }
+  @media (max-width: 900px) { nav.toc { display: none; } main { margin-left: 0; } }
+  header.hero { padding: 72px 0 36px; border-bottom: 1px solid var(--line); }
+  header.hero .kicker { font-family: var(--mono); color: var(--blue); font-size: 13px; letter-spacing: .1em; }
+  h1 { font-size: clamp(32px, 4.6vw, 52px); line-height: 1.08; margin: 12px 0 16px; letter-spacing: -.02em; }
+  h2 { font-size: 30px; margin: 0 0 8px; letter-spacing: -.01em; }
+  h3 { font-size: 20px; margin: 30px 0 8px; }
+  h4 { font-size: 16px; margin: 18px 0 6px; color: var(--sub); }
+  section.ch { padding: 64px 0 8px; border-bottom: 1px solid var(--line); }
+  .chno { font-family: var(--mono); font-size: 13px; color: var(--muted); letter-spacing: .12em; }
+  .lede { color: var(--sub); font-size: 18px; max-width: 760px; }
+  p, li { max-width: 820px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  @media (max-width: 1000px) { .grid2, .grid3 { grid-template-columns: 1fr; } }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; }
+  .card h4 { margin-top: 0; }
+  .card.part { box-shadow: inset 4px 0 0 var(--orange); }
+  .card.gds { box-shadow: inset 4px 0 0 var(--blue); }
+  .tag { display: inline-block; font: 12px var(--mono); padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--sub); }
+  .tag.part { color: var(--orange); border-color: var(--orange); }
+  .tag.gds { color: var(--blue); border-color: var(--blue); }
+  .eq { font-family: var(--serif); font-size: 19px; background: var(--panel2); border: 1px solid var(--line); border-radius: 10px;
+    padding: 14px 18px; margin: 14px 0; overflow-x: auto; white-space: nowrap; }
+  .eq .lbl { float: right; font: 12px var(--mono); color: var(--muted); margin-left: 18px; }
+  .m { font-family: var(--serif); font-style: italic; }
+  .shape { font: 13.5px var(--mono); color: var(--green); background: var(--code); padding: 1px 6px; border-radius: 5px; white-space: nowrap; }
+  code { font: 13.5px var(--mono); background: var(--code); padding: 1px 6px; border-radius: 5px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14.5px; margin: 10px 0; }
+  th, td { border-bottom: 1px solid var(--line); padding: 7px 10px; text-align: left; vertical-align: top; }
+  th { color: var(--sub); font-weight: 600; font-size: 13px; }
+  td.n, th.n { text-align: right; font-family: var(--mono); }
+  tr.hl td { background: rgba(90,169,255,.10); font-weight: 600; }
+  .note { border-left: 3px solid var(--yellow); background: rgba(255,209,102,.08); padding: 10px 14px; border-radius: 0 10px 10px 0; margin: 14px 0; }
+  .key { border-left: 3px solid var(--green); background: rgba(95,209,139,.08); padding: 10px 14px; border-radius: 0 10px 10px 0; margin: 14px 0; }
+  figure { margin: 18px 0; }
+  figcaption { color: var(--muted); font-size: 13.5px; margin-top: 6px; }
+  svg text { font-family: system-ui, sans-serif; fill: var(--ink); }
+  svg .mono { font-family: var(--mono); }
+  .ctrl { display: flex; flex-wrap: wrap; gap: 14px 26px; align-items: center; margin: 10px 0 14px; font-size: 14px; }
+  .ctrl label { display: flex; align-items: center; gap: 8px; color: var(--sub); }
+  .ctrl input[type=range] { width: 150px; accent-color: var(--blue); }
+  .ctrl output { font-family: var(--mono); color: var(--ink); min-width: 38px; }
+  .ctrl select { background: var(--panel2); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; }
+  button.b { font: 13px var(--mono); background: var(--panel2); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+  button.b:hover, button.b:focus-visible { border-color: var(--blue); outline: none; }
+  .heat { display: grid; gap: 2px; }
+  .heat div { aspect-ratio: 1; border-radius: 3px; display: grid; place-items: center; font: 10.5px var(--mono); color: var(--ink); }
+  .heatwrap { text-align: center; }
+  .heatwrap .t { font-size: 13.5px; font-weight: 600; margin-bottom: 6px; }
+  .heatwrap .s { font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .bars { display: flex; gap: 3px; align-items: flex-end; height: 70px; border-bottom: 1px solid var(--line); }
+  .bars i { flex: 1; background: var(--blue); border-radius: 2px 2px 0 0; min-height: 1px; }
+  .stepper { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0; }
+  .stepper button[aria-pressed=true] { border-color: var(--blue); color: var(--blue); }
+  .small { font-size: 13.5px; color: var(--muted); }
+  .flow { overflow-x: auto; }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; color: var(--sub); }
+  .legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; background: var(--c); vertical-align: -1px; }
+  img.fig { width: 100%; border-radius: 10px; border: 1px solid var(--line); background: #fff; }
+</style>
+</head>
+<body>
+
+<nav class="toc" aria-label="Chapters">
+  <b>Documentary</b>
+  <a href="#c0">0 · The question</a>
+  <a href="#c1">1 · Jets and the physics inputs</a>
+  <a href="#c2">2 · Tensors from zero</a>
+  <a href="#c3">3 · Neural-network building blocks</a>
+  <a href="#c4">4 · Embeddings: two streams</a>
+  <a href="#c5">5 · Self-attention from scratch</a>
+  <a href="#c6">6 · ParT: additive pair bias</a>
+  <a href="#c7">7 · GDS-ParT: gated Q/K</a>
+  <a href="#c8">8 · Side by side: the math</a>
+  <a href="#c9">9 · Interactive lab</a>
+  <a href="#c10">10 · Full model &amp; training</a>
+  <a href="#c11">11 · Cost &amp; complexity</a>
+  <a href="#c12">12 · Results</a>
+  <a href="#c13">13 · Beyond: MoE</a>
+  <a href="#c14">14 · Glossary</a>
+</nav>
+
+<main>
+<header class="hero">
+  <div class="kicker">A VISUAL DOCUMENTARY · PARTICLE TRANSFORMERS</div>
+  <h1>How a transformer reads a particle jet, and two ways of teaching it physics</h1>
+  <p class="lede">This page compares <b style="color:var(--orange)">ParT</b> (Particle Transformer, Qu et al. 2022) with <b style="color:var(--blue)">GDS-ParT</b> (Gated Dual-Stream Particle Transformer) and builds every idea from the start. It covers tensors, layers and attention, then both architectures with their full math. An interactive model computes both kinds of attention live in your browser.</p>
+  <p class="small">Numbers on this page come from this repository: <code>gds_part_colab.py</code>, <code>data/jetclass_cache.py</code>, <code>train_gds_part.py</code> and <code>results/v2_shared_10M_10ep</code>.</p>
+</header>
+
+<section class="ch" id="c0">
+  <div class="chno">CHAPTER 0</div>
+  <h2>The question both models answer</h2>
+  <p>At the LHC, a single quark or gluon turns into a narrow spray of up to 100+ particles called a <b>jet</b>. Different originating particles leave different patterns inside the jet. A Higgs boson decaying to two b-quarks produces two hard sub-clusters with displaced tracks; a top quark produces three. The task is <b>jet tagging</b>: given the list of particles in one jet, decide which of 10 processes produced it.</p>
+  <p>A transformer is a natural fit because a jet is a <i>set</i>: the particles have no natural order. But physics also depends on <b>pairs</b> of particles (their angle, their combined mass), and a plain transformer cannot see pairs directly. Both models feed pairwise physics in, at different places:</p>
+  <div class="grid2">
+    <div class="card part"><h4><span class="tag part">ParT</span> pairs change <i>who listens to whom</i></h4>
+      Pair features become a number added to each attention score, called a <b>bias</b>. The particle vectors themselves are not changed.
+      <div class="eq">softmax( <span class="m">QK</span><sup>⊤</sup>/√<span class="m">d</span> + <b style="color:var(--orange)">ψ(U)</b> )</div></div>
+    <div class="card gds"><h4><span class="tag gds">GDS-ParT</span> pairs change <i>what each particle looks like</i></h4>
+      Pair features are summarised per particle into <b>gates</b>. The gates rescale every query/key channel before the scores are computed.
+      <div class="eq">softmax( (<span class="m">Q</span>⊙<b style="color:var(--blue)">G<sub>Q</sub></b>)(<span class="m">K</span>⊙<b style="color:var(--blue)">G<sub>K</sub></b>)<sup>⊤</sup>/√<span class="m">d</span> )</div></div>
+  </div>
+  <p>The current GDS-ParT (v2) keeps the gates and <i>also</i> adds a ParT-style bias. This "hybrid" design is why its results sit so close to ParT's. Chapter 8 shows exactly what each mechanism can and cannot express.</p>
+</section>
+
+<section class="ch" id="c1">
+  <div class="chno">CHAPTER 1</div>
+  <h2>Jets and the physics inputs</h2>
+  <p class="lede">The models see two kinds of numbers: 17 numbers <b>per particle</b> and 4 numbers <b>per pair of particles</b>.</p>
+  <h3>Coordinates: η, φ and p<sub>T</sub></h3>
+  <p>Colliders use cylindrical coordinates around the beam:</p>
+  <ul>
+    <li><span class="m">p</span><sub>T</sub> = √(<span class="m">p<sub>x</sub></span>²+<span class="m">p<sub>y</sub></span>²) is the momentum transverse to the beam.</li>
+    <li>φ is the azimuthal angle around the beam.</li>
+    <li>Rapidity <span class="m">y</span> = ½ ln((<span class="m">E</span>+<span class="m">p<sub>z</sub></span>)/(<span class="m">E</span>−<span class="m">p<sub>z</sub></span>)), or its massless version η, measures the angle relative to the beam.</li>
+  </ul>
+  <p>Distances inside a jet are measured in the (<span class="m">y</span>, φ) plane:</p>
+  <div class="eq">Δ<sub><span class="m">ij</span></sub> = √( (<span class="m">y<sub>i</sub></span> − <span class="m">y<sub>j</sub></span>)² + (φ<sub><span class="m">i</span></sub> − φ<sub><span class="m">j</span></sub>)² )<span class="lbl">angular distance</span></div>
+  <figure>
+  <svg viewBox="0 0 900 300" width="100%" role="img" aria-label="A jet in the eta-phi plane with two prongs">
+    <g transform="translate(40,20)">
+      <rect width="380" height="260" rx="10" fill="var(--panel2)" stroke="var(--line)"/>
+      <text x="190" y="252" text-anchor="middle" font-size="12" fill="var(--muted)">Δη →</text>
+      <circle cx="190" cy="130" r="105" fill="none" stroke="var(--line)" stroke-dasharray="4 5"/>
+      <text x="282" y="34" font-size="11" fill="var(--muted)">R = 0.8 jet cone</text>
+      <g id="jetdots"></g>
+      <circle cx="190" cy="130" r="4" fill="var(--yellow)"/><text x="198" y="146" font-size="11" fill="var(--yellow)">jet axis</text>
+    </g>
+    <g transform="translate(460,30)" font-size="13">
+      <text x="0" y="10" font-weight="600">What one jet looks like to the model</text>
+      <text x="0" y="40" fill="var(--sub)">• each dot = one particle (size ∝ pT)</text>
+      <text x="0" y="64" fill="var(--sub)">• colour = particle type</text>
+      <text x="0" y="88" fill="var(--sub)">• H→bb̄: 2 hard prongs; t→bqq′: 3 prongs;</text>
+      <text x="12" y="108" fill="var(--sub)">QCD: 1 core + soft spray</text>
+      <text x="0" y="136" fill="var(--sub)">• up to N = 128 particles kept (highest pT first)</text>
+      <g transform="translate(0,166)" font-size="12">
+        <circle cx="6" cy="0" r="5" fill="var(--blue)"/><text x="16" y="4">charged hadron</text>
+        <circle cx="136" cy="0" r="5" fill="var(--green)"/><text x="146" y="4">neutral hadron</text>
+        <circle cx="266" cy="0" r="5" fill="var(--yellow)"/><text x="276" y="4">photon</text>
+        <circle cx="6" cy="24" r="5" fill="var(--pink)"/><text x="16" y="28">electron</text>
+        <circle cx="136" cy="24" r="5" fill="var(--violet)"/><text x="146" y="28">muon</text>
+      </g>
+    </g>
+  </svg>
+  <figcaption>Figure 1.1: A synthetic two-prong jet in the plane of angular offsets from the jet axis.</figcaption>
+  </figure>
+
+  <h3>The 17 per-particle features</h3>
+  <p>Each feature is shifted and scaled into roughly −5…5, as in the official JetClass configuration (<code>data/jetclass_cache.py</code>):</p>
+  <table>
+    <tr><th>#</th><th>Feature</th><th>Formula / meaning</th><th>Why it matters</th></tr>
+    <tr><td>0</td><td>log p<sub>T</sub></td><td>(ln p<sub>T</sub> − 1.7)·0.7</td><td>hardness of the particle</td></tr>
+    <tr><td>1</td><td>log E</td><td>(ln E − 2.0)·0.7</td><td>energy</td></tr>
+    <tr><td>2</td><td>log p<sub>T</sub>/p<sub>T,jet</sub></td><td>(ln(p<sub>T</sub>/p<sub>T,jet</sub>) + 4.7)·0.7</td><td>momentum <i>share</i>, independent of jet energy</td></tr>
+    <tr><td>3</td><td>log E/E<sub>jet</sub></td><td>(ln(E/E<sub>jet</sub>) + 4.7)·0.7</td><td>energy share</td></tr>
+    <tr><td>4</td><td>ΔR to axis</td><td>(√(Δη²+Δφ²) − 0.2)·4</td><td>core vs. wide-angle radiation</td></tr>
+    <tr><td>5–6</td><td>Δη, Δφ</td><td>offset from the jet axis</td><td>position in the jet "image"</td></tr>
+    <tr><td>7</td><td>charge</td><td>−1, 0, +1</td><td>tracks vs. neutrals</td></tr>
+    <tr><td>8–12</td><td>particle ID</td><td>one-hot: ch. hadron, neu. hadron, γ, e, μ</td><td>leptons signal W and top decays</td></tr>
+    <tr><td>13–16</td><td>tanh d<sub>0</sub>, σ<sub>d0</sub>, tanh d<sub>z</sub>, σ<sub>dz</sub></td><td>track impact parameters and their errors</td><td>displaced vertices point to b/c quarks</td></tr>
+  </table>
+
+  <h3>The 4 pairwise features</h3>
+  <p>For every ordered pair (<span class="m">i</span>, <span class="m">j</span>) with four-momenta <span class="m">p<sub>i</sub></span>, <span class="m">p<sub>j</sub></span>, the GPU computes (<code>pairwise_features()</code>):</p>
+  <div class="eq">ln Δ<sub><span class="m">ij</span></sub>, &nbsp; ln <span class="m">k</span><sub>T</sub> = ln( min(<span class="m">p</span><sub>T,<span class="m">i</span></sub>, <span class="m">p</span><sub>T,<span class="m">j</span></sub>) · Δ<sub><span class="m">ij</span></sub> ), &nbsp; ln <span class="m">z</span> = ln( min(<span class="m">p</span><sub>T,<span class="m">i</span></sub>, <span class="m">p</span><sub>T,<span class="m">j</span></sub>) / (<span class="m">p</span><sub>T,<span class="m">i</span></sub>+<span class="m">p</span><sub>T,<span class="m">j</span></sub>) ), &nbsp; ln <span class="m">m</span>² = ln( (<span class="m">p<sub>i</sub></span>+<span class="m">p<sub>j</sub></span>)² )</div>
+  <div class="grid2">
+    <div class="card"><h4>Physics reading</h4><ul>
+      <li><b>Δ</b>: how collinear the pair is.</li>
+      <li><b>k<sub>T</sub></b>: transverse momentum of the softer particle relative to the harder one. QCD splittings are ordered in this variable (the Lund plane).</li>
+      <li><b>z</b>: momentum-sharing fraction of a splitting. Soft gluon emission has small z.</li>
+      <li><b>m²</b>: invariant mass of the pair. Pairs from a W, Z, H or top decay cluster around those masses.</li></ul></div>
+    <div class="card"><h4>Properties</h4><ul>
+      <li>Symmetric: U<sub>ij</sub> = U<sub>ji</sub>.</li>
+      <li>Boost-invariant along the beam, because they use rapidity differences.</li>
+      <li>Logarithms compress values spanning several orders of magnitude into a few units.</li>
+      <li>Self-pairs (i = j) and padding pairs are set to 0.</li></ul></div>
+  </div>
+</section>
+
+<section class="ch" id="c2">
+  <div class="chno">CHAPTER 2</div>
+  <h2>Tensors from zero</h2>
+  <p class="lede">A tensor is a grid of numbers with a <b>shape</b>, which lists how many entries there are along each axis. Everything in these models is a tensor, and reading shapes is the most useful skill for understanding the code.</p>
+  <figure>
+  <svg viewBox="0 0 900 230" width="100%" role="img" aria-label="Scalar, vector, matrix and rank-3 tensor">
+    <g font-size="13">
+      <g transform="translate(30,40)"><rect width="40" height="40" rx="5" fill="var(--blue)" opacity=".85"/><text x="20" y="26" text-anchor="middle" class="mono">3.1</text>
+        <text x="20" y="80" text-anchor="middle" font-weight="600">scalar</text><text x="20" y="100" text-anchor="middle" class="mono" fill="var(--green)">shape ()</text><text x="20" y="120" text-anchor="middle" fill="var(--muted)">rank 0</text></g>
+      <g transform="translate(140,40)" id="vecg"></g>
+      <g transform="translate(330,10)" id="matg"></g>
+      <g transform="translate(600,10)" id="t3g"></g>
+    </g>
+  </svg>
+  <figcaption>Figure 2.1: Ranks 0–3. The rank is the number of indices needed to pick out one number.</figcaption>
+  </figure>
+  <h3>The tensors in this model</h3>
+  <table>
+    <tr><th>Name in code</th><th>Shape</th><th>Read as</th></tr>
+    <tr><td><code>particle_features</code></td><td><span class="shape">(B, N, 17)</span></td><td>B jets × N particle slots × 17 features</td></tr>
+    <tr><td><code>pairwise_features</code> U</td><td><span class="shape">(B, N, N, 4)</span></td><td>for every jet, an N×N table with 4 numbers in each cell</td></tr>
+    <tr><td><code>mask</code></td><td><span class="shape">(B, N)</span> bool</td><td>True for a real particle, False for padding</td></tr>
+    <tr><td><code>x</code> (hidden state)</td><td><span class="shape">(B, N, 128)</span></td><td>each particle as a 128-dimensional learned vector</td></tr>
+    <tr><td><code>rel</code></td><td><span class="shape">(B, N, N, 64)</span></td><td>each pair as a 64-dimensional learned vector</td></tr>
+    <tr><td>attention scores</td><td><span class="shape">(B, H, N, N)</span></td><td>H = 8 heads, each with an N×N "who looks at whom" table</td></tr>
+    <tr><td><code>logits</code></td><td><span class="shape">(B, 10)</span></td><td>one score per jet class</td></tr>
+  </table>
+  <h3>Batches and padding</h3>
+  <p>The GPU processes <b>B</b> jets at once, so every jet is padded to the same length N with dummy rows. The boolean <b>mask</b> records which rows are real. Masking guarantees that padding never influences a real particle: its attention logit is set to −∞, so after softmax its weight is exactly 0.</p>
+  <figure>
+  <svg viewBox="0 0 900 140" width="100%" role="img" aria-label="Three jets padded to equal length"><g id="padg" transform="translate(20,6)"></g></svg>
+  <figcaption>Figure 2.2: Three jets with 6, 9 and 4 particles, padded to N = 10. Grey cells are masked.</figcaption>
+  </figure>
+  <h3>Operations you need</h3>
+  <div class="grid3">
+    <div class="card"><h4>Element-wise product ⊙</h4>Multiply matching entries: (a⊙b)<sub>c</sub> = a<sub>c</sub>b<sub>c</sub>. The shapes must match. This is how a <b>gate</b> scales channels.</div>
+    <div class="card"><h4>Dot product ·</h4>a·b = Σ<sub>c</sub> a<sub>c</sub>b<sub>c</sub>: one number measuring how aligned two vectors are. This is how attention compares two particles.</div>
+    <div class="card"><h4>Matrix product</h4>(AB)<sub>ij</sub> = Σ<sub>c</sub> A<sub>ic</sub>B<sub>cj</sub>: many dot products at once. <span class="m">QK</span><sup>⊤</sup> gives the dot product of every pair.</div>
+    <div class="card"><h4>Broadcasting</h4>Combining <span class="shape">(N, 1)</span> with <span class="shape">(1, N)</span> behaves like <span class="shape">(N, N)</span>. The code builds all pair differences with <code>y[:, :, None] − y[:, None, :]</code>.</div>
+    <div class="card"><h4>Reduction</h4>A sum, mean or softmax along one axis removes that axis or normalises along it. Averaging <span class="shape">(N, N, 64)</span> over j gives <span class="shape">(N, 64)</span>, a per-particle summary of its pairs.</div>
+    <div class="card"><h4>einsum</h4>Writes any of these with index letters. <code>einsum("bij,bijd->bid", α, rel)</code> means summary<sub>bid</sub> = Σ<sub>j</sub> α<sub>bij</sub> rel<sub>bijd</sub>.</div>
+  </div>
+</section>
+
+<section class="ch" id="c3">
+  <div class="chno">CHAPTER 3</div>
+  <h2>Neural-network building blocks</h2>
+  <p class="lede">Every module in both models is assembled from six pieces.</p>
+  <div class="grid2">
+    <div class="card"><h4>1. Linear layer</h4>
+      <div class="eq">y = <span class="m">W</span>x + <span class="m">b</span></div>
+      <span class="m">W</span> is a learned matrix <span class="shape">(d_out, d_in)</span> and <span class="m">b</span> is a learned bias. A linear layer is a learnable change of coordinates. Applied to <span class="shape">(B, N, d_in)</span>, it acts on the last axis and treats every particle the same way. That is why the models do not depend on particle order.</div>
+    <div class="card"><h4>2. Nonlinearity: GELU, tanh, sigmoid</h4>
+      <svg viewBox="0 0 380 150" width="100%" role="img" aria-label="Activation functions"><g id="actg"></g></svg>
+      <div class="legend"><span style="--c:var(--blue)">GELU(x) = x·Φ(x)</span><span style="--c:var(--orange)">sigmoid ∈ (0,1)</span><span style="--c:var(--green)">1+tanh ∈ (0,2)</span></div>
+      Without nonlinearities, stacked linear layers collapse into a single linear map. The GDS v1 gates used <b>sigmoid</b>, which can only shrink a channel. v2 uses <b>1 + tanh</b>, which can shrink <i>or</i> amplify a channel and equals 1 when its input is 0.</div>
+    <div class="card"><h4>3. LayerNorm</h4>
+      <div class="eq">LN(x) = γ ⊙ (x − μ)/√(σ² + ε) + β</div>
+      LayerNorm normalises each particle's vector to mean 0 and variance 1 across its channels, then rescales it with learned γ and β. This keeps activations stable through many layers. Both models apply it <i>before</i> each sub-layer ("pre-LN").</div>
+    <div class="card"><h4>4. Residual connection</h4>
+      <div class="eq">x ← x + F(LN(x))</div>
+      Each layer only adds a correction to x. Gradients can flow straight back through the "+", which makes deep stacks trainable.</div>
+    <div class="card"><h4>5. Softmax</h4>
+      <div class="eq">softmax(s)<sub><span class="m">j</span></sub> = e<sup>s<sub>j</sub></sup> / Σ<sub><span class="m">k</span></sub> e<sup>s<sub>k</sub></sup></div>
+      Softmax turns any scores into positive weights that sum to 1. Adding the same constant to every score changes nothing; adding −∞ to one score removes it.</div>
+    <div class="card"><h4>6. MLP (feed-forward network)</h4>
+      <div class="eq">FFN(x) = <span class="m">W</span><sub>2</sub> GELU(<span class="m">W</span><sub>1</sub>x + <span class="m">b</span><sub>1</sub>) + <span class="m">b</span><sub>2</sub></div>
+      In each block the FFN maps 128 → 512 → 128 and is applied to each particle separately. Attention mixes information <i>between</i> particles; the FFN processes it <i>within</i> each particle.</div>
+  </div>
+</section>
+
+<section class="ch" id="c4">
+  <div class="chno">CHAPTER 4</div>
+  <h2>Embeddings: two streams</h2>
+  <p class="lede">Raw features are lifted into learned vector spaces. This gives the "dual stream": a <b>particle stream</b> <span class="shape">(B, N, 128)</span> and a <b>pair stream</b> <span class="shape">(B, N, N, 64)</span>. Both models build these streams the same way.</p>
+  <div class="eq">x<sub><span class="m">i</span></sub><sup>(0)</sup> = <span class="m">W</span><sub>b</sub> GELU( <span class="m">W</span><sub>a</sub> LN(f<sub><span class="m">i</span></sub>) ) &nbsp;∈ ℝ<sup>128</sup><span class="lbl">ParticleEmbedding 17→128→128</span></div>
+  <div class="eq">r<sub><span class="m">ij</span></sub> = <span class="m">W</span><sub>d</sub> GELU( <span class="m">W</span><sub>c</sub> U<sub><span class="m">ij</span></sub> ) &nbsp;∈ ℝ<sup>64</sup><span class="lbl">PairwiseEmbedding 4→64→64</span></div>
+  <figure class="flow">
+  <svg viewBox="0 0 900 210" width="100%" role="img" aria-label="Dual stream embedding diagram">
+    <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker></defs>
+    <g font-size="13">
+      <rect x="10" y="25" width="150" height="56" rx="8" fill="var(--panel2)" stroke="var(--line)"/><text x="85" y="49" text-anchor="middle">particle features</text><text x="85" y="68" text-anchor="middle" class="mono" fill="var(--green)" font-size="12">(B,N,17)</text>
+      <rect x="10" y="125" width="150" height="56" rx="8" fill="var(--panel2)" stroke="var(--line)"/><text x="85" y="149" text-anchor="middle">4-vectors (px,py,pz,E)</text><text x="85" y="168" text-anchor="middle" class="mono" fill="var(--green)" font-size="12">(B,N,4)</text>
+      <path d="M160 53 H230" stroke="var(--muted)" marker-end="url(#ar)"/><path d="M160 153 H230" stroke="var(--muted)" marker-end="url(#ar)"/>
+      <rect x="232" y="125" width="150" height="56" rx="8" fill="var(--panel2)" stroke="var(--line)"/><text x="307" y="149" text-anchor="middle">pairwise_features()</text><text x="307" y="168" text-anchor="middle" class="mono" fill="var(--green)" font-size="12">U (B,N,N,4)</text>
+      <rect x="232" y="25" width="150" height="56" rx="8" fill="var(--panel2)" stroke="var(--blue)"/><text x="307" y="49" text-anchor="middle">ParticleEmbedding</text><text x="307" y="68" text-anchor="middle" class="mono" fill="var(--green)" font-size="12">MLP 17→128</text>
+      <path d="M382 153 H452" stroke="var(--muted)" marker-end="url(#ar)"/><path d="M382 53 H452" stroke="var(--muted)" marker-end="url(#ar)"/>
+      <rect x="454" y="125" width="150" height="56" rx="8" fill="var(--panel2)" stroke="var(--violet)"/><text x="529" y="149" text-anchor="middle">PairwiseEmbedding</text><text x="529" y="168" text-anchor="middle" class="mono" fill="var(--green)" font-size="12">MLP 4→64</text>
+      <rect x="454" y="25" width="150" height="56" rx="8" fill="var(--panel2)" stroke="var(--blue)" stroke-width="2"/><text x="529" y="49" text-anchor="middle" font-weight="600">particle stream x</text><text x="529" y="68" text-anchor="middle" class="mono" fill="var(--green)" font-size="12">(B,N,128)</text>
+      <path d="M604 153 H674" stroke="var(--muted)" marker-end="url(#ar)"/>
+      <rect x="676" y="125" width="200" height="56" rx="8" fill="var(--panel2)" stroke="var(--violet)" stroke-width="2"/><text x="776" y="149" text-anchor="middle" font-weight="600">pair stream r</text><text x="776" y="168" text-anchor="middle" class="mono" fill="var(--green)" font-size="12">(B,N,N,64)</text>
+      <text x="640" y="100" font-size="12" fill="var(--muted)">both streams feed every attention block</text>
+    </g>
+  </svg>
+  <figcaption>Figure 4.1: The two streams. Pair features are computed on the GPU from 4-vectors for each batch. Storing N×N×4 per jet would take about 256 KB × 10M jets.</figcaption>
+  </figure>
+  <div class="key"><b>Up to here the two models are identical.</b> ParT and GDS-ParT differ only in <i>how</i> the pair stream r enters attention, which is the subject of the rest of this page.</div>
+</section>
+
+<section class="ch" id="c5">
+  <div class="chno">CHAPTER 5</div>
+  <h2>Self-attention from scratch</h2>
+  <p class="lede">Attention lets every particle gather information from every other particle, weighted by relevance. Click through the steps.</p>
+  <div class="stepper" role="group" aria-label="Attention steps" id="attnSteps"></div>
+  <div class="card" id="attnStepBody" aria-live="polite"></div>
+  <h3>All steps in one line</h3>
+  <div class="eq">Attn(X) = softmax( (X<span class="m">W<sub>Q</sub></span>)(X<span class="m">W<sub>K</sub></span>)<sup>⊤</sup> / √<span class="m">d</span> + M ) · X<span class="m">W<sub>V</sub></span><span class="lbl">M = 0 for real particles, −∞ for padding</span></div>
+  <h3>Multi-head attention</h3>
+  <p>The 128 channels are split into <b>H = 8 heads</b> of <b>d = 16</b> channels each. Each head runs its own attention and can attend by a different criterion, for example one by angle and another by charge. The head outputs are concatenated back to 128 channels and mixed by <span class="m">W<sub>O</sub></span>.</p>
+  <div class="eq">s<sup>(h)</sup><sub><span class="m">ij</span></sub> = q<sup>(h)</sup><sub><span class="m">i</span></sub> · k<sup>(h)</sup><sub><span class="m">j</span></sub> / √<span class="m">d</span> = (1/√<span class="m">d</span>) Σ<sub><span class="m">c</span> ∈ head h</sub> q<sub><span class="m">ic</span></sub> k<sub><span class="m">jc</span></sub></div>
+  <h3>Why divide by √d?</h3>
+  <p>If q and k have independent entries with variance 1, their dot product over d channels has variance d. Dividing by √d brings the variance back to 1. Without this, softmax saturates (one weight ≈ 1, the rest ≈ 0) and its gradients vanish.</p>
+  <h3>Permutation equivariance and the missing piece</h3>
+  <p>If you reorder the input particles, the output rows are reordered in exactly the same way, so no particle ordering is built in. But plain attention sees particles only through their own vectors q<sub>i</sub> and k<sub>j</sub>. It has no direct access to <i>pair</i> quantities such as invariant mass, which depend on both particles jointly. Both architectures exist to fix this gap.</p>
+</section>
+
+<section class="ch" id="c6">
+  <div class="chno">CHAPTER 6</div>
+  <h2><span style="color:var(--orange)">ParT</span>: physics as an additive attention bias</h2>
+  <p class="lede">ParT (Qu, Li &amp; Qian, ICML 2022) maps each pair's embedding to one number per head and adds it to that pair's attention score.</p>
+  <div class="eq">b<sup>(h)</sup><sub><span class="m">ij</span></sub> = (<span class="m">W</span><sub>bias</sub> r<sub><span class="m">ij</span></sub>)<sub>h</sub> &nbsp;&nbsp;&nbsp; a<sup>(h)</sup><sub><span class="m">ij</span></sub> = softmax<sub><span class="m">j</span></sub>( q<sup>(h)</sup><sub><span class="m">i</span></sub>·k<sup>(h)</sup><sub><span class="m">j</span></sub>/√<span class="m">d</span> + <b style="color:var(--orange)">b<sup>(h)</sup><sub><span class="m">ij</span></sub></b> )<span class="lbl">ψ(U) = W<sub>bias</sub>·r, shape (B,H,N,N)</span></div>
+  <h3>Reading the bias as a multiplicative prior</h3>
+  <p>Exponentiating inside the softmax turns the additive bias into a factor that multiplies each attention weight:</p>
+  <div class="eq">a<sub><span class="m">ij</span></sub> ∝ exp(q<sub><span class="m">i</span></sub>·k<sub><span class="m">j</span></sub>/√<span class="m">d</span>) · <b style="color:var(--orange)">exp(b<sub><span class="m">ij</span></sub>)</b></div>
+  <p>A large exp(b<sub>ij</sub>) says "whatever the content, i should look at j". The bias acts as a learned, physics-informed adjacency matrix laid over content-based attention.</p>
+  <div class="grid2">
+    <div class="card part"><h4>Strengths</h4><ul>
+      <li><b>Exactly pair-specific.</b> Each (i, j) gets its own number, so the model can learn rules like "attend to partners with m<sub>ij</sub> ≈ m<sub>W</sub>" directly.</li>
+      <li><b>Cheap.</b> One Linear layer 64 → 8, computed once and shared by all layers in ParT.</li>
+      <li><b>Measurably useful.</b> In the ParT paper, removing the bias costs about 1.2 accuracy points on 100M jets (0.861 → 0.849).</li></ul></div>
+    <div class="card part"><h4>Limits</h4><ul>
+      <li>It changes <b>who</b> is attended to, not <b>what</b> is read. The values v<sub>j</sub> and the geometry of q and k are untouched.</li>
+      <li>It is <b>content-independent</b>: b<sub>ij</sub> is the same in every layer and ignores what particle i has learned so far.</li>
+      <li>It is one scalar per head, so all 16 channels of a head get the same push.</li></ul></div>
+  </div>
+</section>
+
+<section class="ch" id="c7">
+  <div class="chno">CHAPTER 7</div>
+  <h2><span style="color:var(--blue)">GDS-ParT</span>: physics as multiplicative gates on Q and K</h2>
+  <p class="lede">GDS-ParT asks a different question: <i>given what this particle's relations say about its neighbourhood, which features should it emphasise when it asks (Q) and when it answers (K)?</i></p>
+  <h3>Step 1: summarise each particle's pairs</h3>
+  <p>Particle i owns a row of N pair vectors r<sub>i1</sub> … r<sub>iN</sub>. The <code>RelationalGate</code> reduces that row to one vector s<sub>i</sub> ∈ ℝ<sup>64</sup> in one of two ways:</p>
+  <div class="grid2">
+    <div class="card"><h4>v1 / shared mode: uniform mean</h4>
+      <div class="eq">s<sub><span class="m">i</span></sub> = (1/<span class="m">n</span>) Σ<sub>real <span class="m">j</span></sub> r<sub><span class="m">ij</span></sub></div>
+      Every neighbour counts equally. The gates are computed once and shared by all layers.</div>
+    <div class="card"><h4>v2 per-layer mode: attention-weighted</h4>
+      <div class="eq">α<sub><span class="m">ij</span></sub> = softmax<sub><span class="m">j</span></sub>( r<sub><span class="m">ij</span></sub> · <span class="m">W</span><sub>ctx</sub>h<sub><span class="m">i</span></sub> / 8 ), &nbsp; s<sub><span class="m">i</span></sub> = Σ<sub><span class="m">j</span></sub> α<sub><span class="m">ij</span></sub> r<sub><span class="m">ij</span></sub></div>
+      In every layer, particle i uses its <i>current</i> state h<sub>i</sub> to decide which relations matter. (The 8 is √64.)</div>
+  </div>
+  <h3>Step 2: turn the summary into two gates</h3>
+  <div class="eq">g<sup>Q</sup><sub><span class="m">i</span></sub> = 1 + tanh( MLP<sub>Q</sub>(s<sub><span class="m">i</span></sub>) ), &nbsp; g<sup>K</sup><sub><span class="m">i</span></sub> = 1 + tanh( MLP<sub>K</sub>(s<sub><span class="m">i</span></sub>) ) &nbsp; ∈ (0, 2)<sup>128</sup><span class="lbl">MLP 64 → 128 → 128</span></div>
+  <p>The last layer of each MLP is <b>zero-initialised</b>. At the start of training, tanh(0) = 0, so every gate is exactly 1 and the model starts as a plain transformer. It moves a gate away from 1 only where doing so reduces the loss. v1 used sigmoid ∈ (0, 1), which starts at 0.5 and can only shrink channels.</p>
+  <h3>Step 3: gate Q and K before the dot product</h3>
+  <div class="eq">q′<sub><span class="m">i</span></sub> = q<sub><span class="m">i</span></sub> ⊙ g<sup>Q</sup><sub><span class="m">i</span></sub>, &nbsp; k′<sub><span class="m">j</span></sub> = k<sub><span class="m">j</span></sub> ⊙ g<sup>K</sup><sub><span class="m">j</span></sub>, &nbsp; v<sub><span class="m">j</span></sub> ungated</div>
+  <div class="eq">a<sup>(h)</sup><sub><span class="m">ij</span></sub> = softmax<sub><span class="m">j</span></sub>( q′<sub><span class="m">i</span></sub>·k′<sub><span class="m">j</span></sub>/√<span class="m">d</span> <span style="color:var(--orange)">+ b<sup>(h)</sup><sub><span class="m">ij</span></sub></span> )<span class="lbl">v2 hybrid keeps the ParT bias as well</span></div>
+  <figure class="flow">
+  <svg viewBox="0 0 900 290" width="100%" role="img" aria-label="GDS attention block diagram">
+    <g font-size="13">
+      <rect x="10" y="20" width="120" height="48" rx="8" fill="var(--panel2)" stroke="var(--blue)"/><text x="70" y="49" text-anchor="middle">h = LN(x)</text>
+      <rect x="10" y="200" width="120" height="48" rx="8" fill="var(--panel2)" stroke="var(--violet)"/><text x="70" y="229" text-anchor="middle">r (N,N,64)</text>
+      <path d="M130 44 H190" stroke="var(--muted)" marker-end="url(#ar)"/>
+      <rect x="192" y="8" width="130" height="72" rx="8" fill="var(--panel2)" stroke="var(--line)"/><text x="257" y="34" text-anchor="middle">WQ, WK, WV</text><text x="257" y="56" text-anchor="middle" class="mono" font-size="12" fill="var(--green)">q, k, v (N,128)</text>
+      <path d="M130 224 H190" stroke="var(--muted)" marker-end="url(#ar)"/>
+      <rect x="192" y="190" width="130" height="68" rx="8" fill="var(--panel2)" stroke="var(--blue)" stroke-width="2"/><text x="257" y="214" text-anchor="middle" font-weight="600">RelationalGate</text><text x="257" y="234" text-anchor="middle" font-size="12">aggregate j → s_i</text><text x="257" y="250" text-anchor="middle" font-size="12">1 + tanh(MLP)</text>
+      <path d="M70 68 V150 H257 V188" stroke="var(--muted)" stroke-dasharray="4 4" fill="none" marker-end="url(#ar)"/><text x="80" y="140" font-size="11" fill="var(--muted)">h conditions α (per-layer mode)</text>
+      <path d="M322 44 H400" stroke="var(--muted)" marker-end="url(#ar)"/>
+      <path d="M322 224 H360 V62 H402" stroke="var(--blue)" fill="none" marker-end="url(#ar)"/><text x="366" y="140" font-size="12" fill="var(--blue)">gQ, gK</text>
+      <circle cx="420" cy="52" r="18" fill="var(--panel2)" stroke="var(--blue)"/><text x="420" y="58" text-anchor="middle" font-size="18">⊙</text>
+      <path d="M438 52 H500" stroke="var(--muted)" marker-end="url(#ar)"/>
+      <rect x="502" y="20" width="150" height="64" rx="8" fill="var(--panel2)" stroke="var(--line)"/><text x="577" y="46" text-anchor="middle">q′k′ᵀ/√d</text><text x="577" y="68" text-anchor="middle" class="mono" font-size="12" fill="var(--green)">(H,N,N)</text>
+      <path d="M322 240 H577 V120" stroke="var(--orange)" fill="none" marker-end="url(#ar)" stroke-dasharray="5 4"/><text x="400" y="272" font-size="12" fill="var(--orange)">+ ParT bias W_bias·r (v2 hybrid)</text>
+      <circle cx="577" cy="104" r="14" fill="var(--panel2)" stroke="var(--orange)"/><text x="577" y="109" text-anchor="middle">+</text>
+      <path d="M652 52 H700" stroke="var(--muted)" marker-end="url(#ar)"/>
+      <rect x="702" y="20" width="90" height="64" rx="8" fill="var(--panel2)" stroke="var(--line)"/><text x="747" y="46" text-anchor="middle">softmax</text><text x="747" y="66" text-anchor="middle" font-size="12">+ mask</text>
+      <path d="M792 52 H822" stroke="var(--muted)" marker-end="url(#ar)"/>
+      <rect x="824" y="20" width="66" height="64" rx="8" fill="var(--panel2)" stroke="var(--line)"/><text x="857" y="46" text-anchor="middle">· v</text><text x="857" y="66" text-anchor="middle" font-size="12">W_O</text>
+    </g>
+  </svg>
+  <figcaption>Figure 7.1: One GDS-ParT attention layer, following <code>GDSParTBlock.forward</code>. The blue path is specific to GDS. The orange path is the ParT bias, kept in the v2 hybrid.</figcaption>
+  </figure>
+  <h3>What a gate means physically</h3>
+  <p>The summary s<sub>i</sub> describes particle i's <b>relational environment</b>: how many collinear neighbours it has, how hard their splittings are, and whether it pairs to a heavy-resonance mass. The gates then re-weight the <i>feature channels</i> used for matching. For example, a particle inside a two-prong H→bb̄ substructure could amplify displacement channels and suppress soft-radiation channels before it asks "who should I attend to?". The pairs change the <b>coordinates of the comparison</b>, not only the final scores.</p>
+</section>
+
+<section class="ch" id="c8">
+  <div class="chno">CHAPTER 8</div>
+  <h2>Side by side: what each mechanism can express</h2>
+  <p class="lede">Expanding the gated score channel by channel makes the difference exact.</p>
+  <div class="eq">q′<sub><span class="m">i</span></sub>·k′<sub><span class="m">j</span></sub> = Σ<sub><span class="m">c</span></sub> q<sub><span class="m">ic</span></sub> k<sub><span class="m">jc</span></sub> · <b style="color:var(--blue)">g<sup>Q</sup><sub><span class="m">ic</span></sub> g<sup>K</sup><sub><span class="m">jc</span></sub></b> = q<sub><span class="m">i</span></sub><sup>⊤</sup> <b style="color:var(--blue)">diag(g<sup>Q</sup><sub><span class="m">i</span></sub> ⊙ g<sup>K</sup><sub><span class="m">j</span></sub>)</b> k<sub><span class="m">j</span></sub><span class="lbl">a pair-dependent metric</span></div>
+  <p>Plain attention compares particles with the Euclidean inner product q<sub>i</sub><sup>⊤</sup>I k<sub>j</sub>. GDS-ParT replaces the identity matrix with a <b>diagonal metric that depends on the relational context of both particles</b>. ParT instead adds a constant <i>outside</i> the inner product.</p>
+  <table>
+    <tr><th></th><th>Plain</th><th><span class="tag part">ParT</span></th><th><span class="tag gds">GDS gates</span></th><th>GDS-ParT v2 (hybrid)</th></tr>
+    <tr><td>score s<sub>ij</sub></td><td>q<sub>i</sub>ᵀk<sub>j</sub>/√d</td><td>q<sub>i</sub>ᵀk<sub>j</sub>/√d + b<sub>ij</sub></td><td>q<sub>i</sub>ᵀ diag(g<sup>Q</sup><sub>i</sub>⊙g<sup>K</sup><sub>j</sub>) k<sub>j</sub>/√d</td><td>gated score + b<sub>ij</sub></td></tr>
+    <tr><td>how pair info enters</td><td>never</td><td>additively, per (i, j, head)</td><td>multiplicatively, per (i, channel) and (j, channel)</td><td>both</td></tr>
+    <tr><td>depends on content q, k?</td><td>–</td><td>no: the bias is the same whatever q and k are</td><td>yes: it rescales q and k themselves</td><td>both</td></tr>
+    <tr><td>pair-specific?</td><td>–</td><td><b>yes</b>: one value per exact pair</td><td><b>factorised</b>: g<sub>i</sub>·g<sub>j</sub>, a rank-1 structure per channel</td><td>yes</td></tr>
+    <tr><td>effect on softmax</td><td>–</td><td>multiplies weights by e<sup>b<sub>ij</sub></sup></td><td>changes the sharpness and direction of matching per channel</td><td>both</td></tr>
+    <tr><td>varies by layer?</td><td>–</td><td>no (bias shared by all layers)</td><td>yes in per-layer mode, no in shared mode</td><td>configurable</td></tr>
+    <tr><td>at initialisation</td><td>–</td><td>random bias</td><td>exactly plain attention (g = 1)</td><td>plain attention + random bias</td></tr>
+  </table>
+  <div class="note"><b>The key limitation, and why v2 is a hybrid.</b> A gate is a per-<i>particle</i> quantity. For pair (i, j) in channel c, the factor is g<sup>Q</sup><sub>ic</sub>·g<sup>K</sup><sub>jc</sub>: something about i times something about j. It therefore cannot single out one specific pair (for example "i and j together have m ≈ m<sub>W</sub>") when i's other partners look different. The additive bias can. v1, with gates only, reached 0.827 test accuracy on 10M jets. v2 adds the ParT bias back as a second channel, so pairs are captured both exactly (bias) and contextually (gates), and reaches 0.848.</div>
+  <h3>Gradients: how each mechanism learns</h3>
+  <div class="grid2">
+    <div class="card part"><h4>ParT bias</h4>
+      <div class="eq">∂L/∂b<sub><span class="m">ij</span></sub> = ∂L/∂s<sub><span class="m">ij</span></sub></div>
+      The bias receives the raw score gradient whatever q and k are, so it learns a content-blind prior.</div>
+    <div class="card gds"><h4>GDS gate</h4>
+      <div class="eq">∂L/∂g<sup>Q</sup><sub><span class="m">ic</span></sub> = Σ<sub><span class="m">j</span></sub> (∂L/∂s<sub><span class="m">ij</span></sub>) · q<sub><span class="m">ic</span></sub> g<sup>K</sup><sub><span class="m">jc</span></sub> k<sub><span class="m">jc</span></sub> /√<span class="m">d</span></div>
+      A gate learns only through channels that are active in q and k, so it can only amplify features that already carry signal.</div>
+  </div>
+</section>
+
+<section class="ch" id="c9">
+  <div class="chno">CHAPTER 9</div>
+  <h2>Interactive lab: compute both attentions live</h2>
+  <p class="lede">A toy jet with 6 particles and a tiny model (d = 8, pair dimension 6, one head) with fixed random weights. <b>Drag the particles</b>, or focus one and use the arrow keys. The pair features, ParT bias, gates and all three attention maps are recomputed from the formulas above.</p>
+  <div class="ctrl">
+    <label>bias strength β <input id="sB" type="range" min="0" max="3" step="0.05" value="1"><output id="oB">1.00</output></label>
+    <label>gate strength γ <input id="sG" type="range" min="0" max="3" step="0.05" value="1"><output id="oG">1.00</output></label>
+    <label>gate type <select id="sMode"><option value="id">1+tanh (v2)</option><option value="sig">sigmoid (v1)</option></select></label>
+    <label>aggregation <select id="sAgg"><option value="mean">uniform mean</option><option value="att">attention-weighted</option></select></label>
+    <button class="b" id="bShuffle" type="button">new random jet</button>
+  </div>
+  <p class="small">With the 1+tanh gate at γ = 0, the GDS map equals the plain map. This is the zero-initialised start of training. Raise γ to imitate a gate that has learned to move away from 1.</p>
+  <div class="grid2" style="align-items:start">
+    <div class="card">
+      <h4>Toy jet (η–φ plane): drag the particles</h4>
+      <svg id="lab" viewBox="0 0 320 260" width="100%" role="application" aria-label="Draggable toy jet"></svg>
+      <p class="small">Line thickness shows the GDS attention between two particles.</p>
+    </div>
+    <div class="card">
+      <h4>Pair invariant mass ln m²<sub>ij</sub></h4>
+      <div id="hmM"></div>
+      <h4>Gate per particle (mean of g<sup>Q</sup> over channels)</h4>
+      <div id="gates"></div>
+    </div>
+  </div>
+  <div class="grid3" id="hmRow" style="margin-top:14px"></div>
+  <p class="small">Each row i is one softmax distribution showing how much particle i attends to each particle j. Cell values are weights × 100.</p>
+</section>
+
+<section class="ch" id="c10">
+  <div class="chno">CHAPTER 10</div>
+  <h2>The full model and how it is trained</h2>
+  <figure class="flow">
+  <svg viewBox="0 0 900 120" width="100%" role="img" aria-label="Full model pipeline"><g id="pipe" font-size="12.5"></g></svg>
+  <figcaption>Figure 10.1: GDS-ParT v2 as trained in <code>v2_shared_10M_10ep</code>: 8 gated blocks (shared gate, hybrid bias), 2 class-attention blocks, 2.07M parameters.</figcaption>
+  </figure>
+  <h3>One block (pre-LN)</h3>
+  <div class="eq">x ← x + GatedAttn( LN(x), g<sup>Q</sup>, g<sup>K</sup>, b ) &nbsp;&nbsp;&nbsp; x ← x + FFN( LN(x) )</div>
+  <h3>Class-attention pooling</h3>
+  <p>A learned <b>CLS token</b> c ∈ ℝ<sup>128</sup> attends over all particles in 2 class-attention blocks, and only c is updated, as in CaiT and ParT. It becomes a single jet vector, and an MLP 128 → 128 → 10 produces the logits z. v1 averaged the particle vectors (masked mean) instead.</p>
+  <h3>Loss and probabilities</h3>
+  <div class="eq">p<sub>k</sub> = softmax(z)<sub>k</sub>, &nbsp; L = − Σ<sub>k</sub> ỹ<sub>k</sub> ln p<sub>k</sub>, &nbsp; ỹ = 0.9·onehot(y) + 0.1/10<span class="lbl">cross-entropy with label smoothing 0.1</span></div>
+  <p>Label smoothing stops the model from becoming over-confident, which improves calibration and generalisation.</p>
+  <h3>Optimisation recipe</h3>
+  <table>
+    <tr><th>Piece</th><th>Setting</th><th>What it does</th></tr>
+    <tr><td>Optimizer</td><td>AdamW, lr 1e-3, weight decay 0.01</td><td>adaptive per-parameter step sizes plus decoupled weight shrinkage</td></tr>
+    <tr><td>Schedule</td><td>5% linear warm-up, then cosine decay to 0</td><td>avoids early instability, then anneals</td></tr>
+    <tr><td>Batch</td><td>512 jets, split into micro-batches so that B·N² ≤ 2M</td><td>gradient accumulation keeps the N² pair tensor within 6 GB of VRAM</td></tr>
+    <tr><td>Precision</td><td>AMP float16 with GradScaler</td><td>about 2× faster; loss scaling prevents underflow</td></tr>
+    <tr><td>Stability</td><td>gradient clipping at norm 1.0</td><td>limits rare very large updates</td></tr>
+    <tr><td>EMA</td><td>θ̄ ← 0.999·θ̄ + 0.001·θ (0.9999 for the 20-epoch run)</td><td>a smoothed copy of the weights is used for evaluation</td></tr>
+    <tr><td>Memory</td><td>activation checkpointing per block</td><td>recomputes the N×N internals during the backward pass instead of storing them</td></tr>
+    <tr><td>Data</td><td>ragged memmap cache, length-bucketed batches</td><td>about 1.9 KB per jet on disk; pair features are computed on the GPU for each batch</td></tr>
+  </table>
+  <h3>Evaluation metrics (definitions from the ParT paper)</h3>
+  <ul>
+    <li><b>Accuracy</b>: the argmax over 10 classes compared with the true class.</li>
+    <li><b>AUC</b>: the macro average of one-vs-one areas under the ROC curve.</li>
+    <li><b>Background rejection</b> Rej<sub>X%</sub> = 1/FPR at X% signal efficiency, using the score S/(S+B) against QCD. "Rej<sub>50</sub> = 7143 for H→bb̄" means that when half of the true H→bb̄ jets are kept, only 1 in 7143 QCD jets passes.</li>
+  </ul>
+</section>
+
+<section class="ch" id="c11">
+  <div class="chno">CHAPTER 11</div>
+  <h2>Cost and complexity</h2>
+  <table>
+    <tr><th>Component</th><th class="n">Parameters</th><th>Compute per jet</th><th>Memory</th></tr>
+    <tr><td>Pairwise embedding (both models)</td><td class="n">≈ 4.5k</td><td>O(N²·64²)</td><td>(N,N,64): the dominant cost</td></tr>
+    <tr><td>ParT bias W<sub>bias</sub></td><td class="n">520</td><td>O(N²·64·H)</td><td>(H,N,N)</td></tr>
+    <tr><td>One RelationalGate (shared)</td><td class="n">≈ 49k</td><td>O(N²·64) aggregation + O(N·128²)</td><td>2 × (N,128)</td></tr>
+    <tr><td>Per-layer gates (8 layers)</td><td class="n">≈ 8 × 57k</td><td>8× the aggregation, plus context scores</td><td>8 × (N,N) α</td></tr>
+    <tr><td>Attention, per head</td><td class="n">—</td><td>O(N²·d)</td><td>(N,N)</td></tr>
+  </table>
+  <p>With N = 128, one jet's pair stream holds 128·128·64 ≈ 1M numbers per layer. This is why the trainer computes pair features on the fly, buckets jets by multiplicity (most have about 30–60 particles), and splits batches into micro-batches. The gate itself is <b>cheap</b> compared with the pair stream; the expensive step is building r, which both models do.</p>
+</section>
+
+<section class="ch" id="c12">
+  <div class="chno">CHAPTER 12</div>
+  <h2>Results</h2>
+  <p>GDS-ParT v2 was trained on 10M jets for 10 epochs on a 6 GB laptop GPU and tested on 1M balanced JetClass test jets. The published numbers come from Tables 1 and 3 of the ParT paper.</p>
+  <figure><svg viewBox="0 0 900 300" width="100%" role="img" aria-label="Accuracy comparison bar chart"><g id="bar"></g></svg>
+  <figcaption>Figure 12.1: Test accuracy. Blue: this work. Violet: v1 of this work. Orange: ParT. Grey: other published models.</figcaption></figure>
+  <table>
+    <tr><th>Model</th><th class="n">Train jets</th><th class="n">Params</th><th class="n">Accuracy</th><th class="n">AUC</th><th class="n">Hbb Rej50</th><th class="n">Tbqq Rej50</th><th class="n">Wqq Rej50</th></tr>
+    <tr><td>ParticleNet</td><td class="n">10M</td><td class="n">370k</td><td class="n">0.837</td><td class="n">0.9837</td><td class="n">5,848</td><td class="n">5,495</td><td class="n">307</td></tr>
+    <tr><td>ParT</td><td class="n">10M</td><td class="n">2.14M</td><td class="n">0.850</td><td class="n">0.9860</td><td class="n">8,734</td><td class="n">12,579</td><td class="n">431</td></tr>
+    <tr><td>ParT plain (no bias)</td><td class="n">100M</td><td class="n">2.13M</td><td class="n">0.849</td><td class="n">0.9859</td><td class="n">9,569</td><td class="n">17,699</td><td class="n">384</td></tr>
+    <tr><td>GDS-ParT v1 (gates only)</td><td class="n">10M</td><td class="n">1.28M</td><td class="n">0.827</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>
+    <tr class="hl"><td>GDS-ParT v2 (hybrid)</td><td class="n">10M</td><td class="n">2.07M</td><td class="n">0.848</td><td class="n">0.9853</td><td class="n">7,143</td><td class="n">10,000</td><td class="n">328</td></tr>
+  </table>
+  <div class="note"><b>Reading this fairly.</b> At the same 10M training size, GDS-ParT v2 is within 0.002 accuracy of ParT. It has 3% fewer parameters and was trained with roughly 5× fewer jet-iterations: 10 epochs × 10M jets = 100M, compared with 1M steps × 512 ≈ 512M for ParT. The high rejection values depend on few surviving QCD jets in a 1M-jet test set and carry about 10–30% statistical uncertainty. A 20-epoch run is in progress, with best validation accuracy 0.8473 at epoch 8.</div>
+  <div class="grid2">
+    <figure><img class="fig" src="../results/v2_shared_10M_10ep/training_curves.png" alt="Training curves"><figcaption>Training and validation curves.</figcaption></figure>
+    <figure><img class="fig" src="../results/v2_shared_10M_10ep/confusion_matrix.png" alt="Confusion matrix"><figcaption>Confusion matrix. Z→qq̄ against W→qq′ and QCD are the hardest classes to separate.</figcaption></figure>
+  </div>
+</section>
+
+<section class="ch" id="c13">
+  <div class="chno">CHAPTER 13</div>
+  <h2>Beyond: the per-particle Mixture-of-Experts</h2>
+  <p>The follow-up repository <a href="https://github.com/Avinashistoocool/GDS-parT-MoE">GDS-ParT-MoE</a> keeps the gated attention and replaces each block's FFN with 8 expert FFNs plus a router:</p>
+  <div class="eq">π<sub><span class="m">i</span></sub> = softmax(<span class="m">W</span><sub>r</sub>h<sub><span class="m">i</span></sub>), &nbsp; T<sub><span class="m">i</span></sub> = top-2(π<sub><span class="m">i</span></sub>), &nbsp; FFN<sub>MoE</sub>(h<sub><span class="m">i</span></sub>) = Σ<sub><span class="m">e</span>∈T<sub>i</sub></sub> (π<sub><span class="m">ie</span></sub> / Σ<sub><span class="m">e′</span>∈T<sub>i</sub></sub> π<sub><span class="m">ie′</span></sub>) · FFN<sub><span class="m">e</span></sub>(h<sub><span class="m">i</span></sub>)</div>
+  <p>The router chooses experts one particle at a time, so every routing decision can be compared with that particle's physics. In the first fine-tuned model, the layer-0 experts split particles by charge and species (normalised mutual information 0.45 and 0.43), and one expert specialises in muons and displaced tracks. Attention describes <i>how particles exchange information</i>; the experts show <i>which kinds of particles the network treats differently</i>.</p>
+</section>
+
+<section class="ch" id="c14">
+  <div class="chno">CHAPTER 14</div>
+  <h2>Glossary</h2>
+  <table>
+    <tr><td><b>Tensor</b></td><td>an n-dimensional grid of numbers; its shape lists the size of each axis</td></tr>
+    <tr><td><b>Embedding</b></td><td>a learned vector that represents an object, such as a particle or a pair</td></tr>
+    <tr><td><b>Channel</b></td><td>one coordinate of an embedding vector (128 per particle here)</td></tr>
+    <tr><td><b>Q, K, V</b></td><td>query ("what am I looking for"), key ("what do I offer"), value ("what I send"): three linear views of each particle</td></tr>
+    <tr><td><b>Head</b></td><td>an independent attention computation on a 16-channel slice</td></tr>
+    <tr><td><b>Logit</b></td><td>an unnormalised score before softmax</td></tr>
+    <tr><td><b>Bias (ParT)</b></td><td>an additive term on the attention logits, computed from pair features</td></tr>
+    <tr><td><b>Gate (GDS)</b></td><td>a multiplicative factor per channel, computed from a particle's summary of its pairs</td></tr>
+    <tr><td><b>Mask</b></td><td>a boolean marking real particles; padded positions get −∞ logits</td></tr>
+    <tr><td><b>Permutation equivariance</b></td><td>reordering the inputs reorders the outputs the same way, so no order is assumed</td></tr>
+    <tr><td><b>Pre-LN</b></td><td>LayerNorm applied before each sub-layer, inside the residual branch</td></tr>
+    <tr><td><b>EMA</b></td><td>exponential moving average of the weights, used for evaluation</td></tr>
+    <tr><td><b>AMP</b></td><td>automatic mixed precision: float16 compute with float32 master weights</td></tr>
+    <tr><td><b>k<sub>T</sub>, z, Δ, m²</b></td><td>splitting hardness, momentum share, opening angle, pair invariant mass</td></tr>
+    <tr><td><b>Rej<sub>X%</sub></b></td><td>1 / (QCD mistag rate) at X% signal efficiency</td></tr>
+  </table>
+  <p class="small">References: H. Qu, C. Li, S. Qian, <i>Particle Transformer for Jet Tagging</i>, ICML 2022, arXiv:2202.03772. JetClass dataset, Zenodo record 6619768. H. Touvron et al., <i>Going deeper with Image Transformers</i> (CaiT class attention), 2021.</p>
+</section>
+</main>
+
+<script>
+(() => {
+  "use strict";
+  const $ = (s) => document.querySelector(s);
+  const NS = "http://www.w3.org/2000/svg";
+  const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  const el = (tag, attrs = {}, parent) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  };
+  // seeded PRNG so the toy model's weights stay the same between reloads
+  const rng = (seed) => () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+  const gauss = (r) => { let u = 0, v = 0; while (!u) u = r(); while (!v) v = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+  const TYPE_COL = ["--blue", "--green", "--yellow", "--pink", "--violet"];
+
+  /* Fig 1.1 */
+  {
+    const g = $("#jetdots"), r = rng(7), prongs = [[150, 100], [235, 160]];
+    for (let k = 0; k < 46; k++) {
+      const p = prongs[k % 2], sp = k < 10 ? 10 : 34;
+      const x = p[0] + gauss(r) * sp, y = p[1] + gauss(r) * sp;
+      const pt = k < 6 ? 9 - k : 1.2 + r() * 3;
+      const t = k % 9 === 0 ? 2 : k % 7 === 0 ? 1 : k === 13 ? 4 : k === 22 ? 3 : 0;
+      el("circle", { cx: x.toFixed(1), cy: y.toFixed(1), r: (1.5 + pt).toFixed(1), fill: css(TYPE_COL[t]), opacity: 0.8 }, g);
+    }
+  }
+
+  /* Fig 2.1 */
+  {
+    const cell = (g, x, y, v, c, s = 30) => el("rect", { x, y, width: s - 2, height: s - 2, rx: 4, fill: css(c), opacity: (0.25 + 0.6 * v).toFixed(2) }, g);
+    const vg = $("#vecg"), r = rng(3);
+    for (let i = 0; i < 5; i++) cell(vg, 0, i * 30 - 20, r(), "--blue");
+    el("text", { x: 50, y: 30, "font-weight": 600 }, vg).textContent = "vector";
+    el("text", { x: 50, y: 50, class: "mono", fill: css("--green") }, vg).textContent = "shape (17,)";
+    el("text", { x: 50, y: 70, fill: css("--muted") }, vg).textContent = "one particle, rank 1";
+    const mg = $("#matg");
+    for (let i = 0; i < 6; i++) for (let j = 0; j < 6; j++) cell(mg, j * 26, i * 26, r(), "--violet", 26);
+    el("text", { x: 170, y: 60, "font-weight": 600 }, mg).textContent = "matrix";
+    el("text", { x: 170, y: 80, class: "mono", fill: css("--green") }, mg).textContent = "shape (N, 17)";
+    el("text", { x: 170, y: 100, fill: css("--muted") }, mg).textContent = "one jet, rank 2";
+    const tg = $("#t3g");
+    for (let d = 3; d >= 0; d--) for (let i = 0; i < 5; i++) for (let j = 0; j < 5; j++)
+      cell(tg, j * 24 + d * 14, i * 24 + 50 - d * 14, r(), d === 0 ? "--orange" : "--muted", 24);
+    el("text", { x: 180, y: 70, "font-weight": 600 }, tg).textContent = "rank-3 tensor";
+    el("text", { x: 180, y: 90, class: "mono", fill: css("--green") }, tg).textContent = "shape (N, N, 4)";
+    el("text", { x: 180, y: 110, fill: css("--muted") }, tg).textContent = "pair table:";
+    el("text", { x: 180, y: 128, fill: css("--muted") }, tg).textContent = "4 layers of N×N";
+  }
+
+  /* Fig 2.2 */
+  {
+    const g = $("#padg");
+    [6, 9, 4].forEach((n, b) => {
+      el("text", { x: 0, y: b * 42 + 24, fill: css("--sub"), "font-size": 13 }, g).textContent = `jet ${b + 1}`;
+      for (let i = 0; i < 10; i++) {
+        el("rect", { x: 60 + i * 44, y: b * 42 + 4, width: 40, height: 32, rx: 5, fill: i < n ? css("--blue") : css("--panel2"),
+          stroke: css("--line"), opacity: i < n ? 0.75 : 1 }, g);
+        el("text", { x: 80 + i * 44, y: b * 42 + 25, "text-anchor": "middle", "font-size": 11, class: "mono",
+          fill: i < n ? css("--ink") : css("--muted") }, g).textContent = i < n ? "1" : "0";
+      }
+      el("text", { x: 510, y: b * 42 + 24, "font-size": 12, class: "mono", fill: css("--muted") }, g).textContent = `mask: ${n} real, ${10 - n} padding`;
+    });
+  }
+
+  /* Fig 3 activations */
+  {
+    const g = $("#actg"), W = 380, H = 150, X = (x) => W / 2 + x * 40, Y = (y) => H - 20 - y * 45;
+    el("line", { x1: 0, x2: W, y1: Y(0), y2: Y(0), stroke: css("--line") }, g);
+    el("line", { x1: X(0), x2: X(0), y1: 0, y2: H, stroke: css("--line") }, g);
+    const erf = (x) => { const t = 1 / (1 + 0.3275911 * Math.abs(x)); const y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x); return x >= 0 ? y : -y; };
+    const fns = [[(x) => x * 0.5 * (1 + erf(x / Math.SQRT2)), "--blue"], [(x) => 1 / (1 + Math.exp(-x)), "--orange"], [(x) => 1 + Math.tanh(x), "--green"]];
+    for (const [f, c] of fns) {
+      let d = "";
+      for (let x = -4.5; x <= 4.5; x += 0.05) { const y = Math.max(-0.4, Math.min(2.6, f(x))); d += (d ? "L" : "M") + X(x).toFixed(1) + "," + Y(y).toFixed(1); }
+      el("path", { d, fill: "none", stroke: css(c), "stroke-width": 2.2 }, g);
+    }
+    el("text", { x: X(0) + 4, y: Y(1) - 4, "font-size": 10, fill: css("--muted") }, g).textContent = "1";
+    el("text", { x: X(0) + 4, y: Y(2) - 4, "font-size": 10, fill: css("--muted") }, g).textContent = "2";
+  }
+
+  /* Chapter 5 stepper */
+  {
+    const steps = [
+      ["1 · three views", "Each particle vector x<sub>i</sub> ∈ ℝ<sup>128</sup> is projected three times: the <b>query</b> q<sub>i</sub> = W<sub>Q</sub>x<sub>i</sub> (what am I looking for?), the <b>key</b> k<sub>i</sub> = W<sub>K</sub>x<sub>i</sub> (what do I contain?) and the <b>value</b> v<sub>i</sub> = W<sub>V</sub>x<sub>i</sub> (what do I pass on?). Shapes: (B,N,128) → three × (B,N,128)."],
+      ["2 · compare all pairs", "The score s<sub>ij</sub> = q<sub>i</sub>·k<sub>j</sub>/√d measures how well particle i's question matches particle j's answer. QK<sup>⊤</sup> computes all N² scores at once: (N,d) × (d,N) → (N,N)."],
+      ["3 · mask", "Padded particles get s<sub>ij</sub> = −∞, so after softmax their weight is e<sup>−∞</sup> = 0. In the code this is <code>masked_fill(~mask, -inf)</code>."],
+      ["4 · normalise", "a<sub>ij</sub> = softmax<sub>j</sub>(s<sub>ij</sub>). Each row is now a probability distribution: particle i splits 100% of its attention over the real particles."],
+      ["5 · gather", "out<sub>i</sub> = Σ<sub>j</sub> a<sub>ij</sub> v<sub>j</sub>, a weighted average of the other particles' messages. Each particle's new vector now carries context from the whole jet."],
+      ["6 · mix and add", "The heads are concatenated, mixed by W<sub>O</sub>, and added to the residual stream: x ← x + W<sub>O</sub>·out. The FFN then processes each particle on its own."],
+    ];
+    const bar = $("#attnSteps"), body = $("#attnStepBody");
+    const show = (k) => {
+      body.innerHTML = `<b>${steps[k][0]}</b><p style="margin:.4em 0 0">${steps[k][1]}</p>`;
+      bar.querySelectorAll("button").forEach((b, i) => b.setAttribute("aria-pressed", String(i === k)));
+    };
+    steps.forEach((s, i) => {
+      const b = document.createElement("button");
+      b.className = "b"; b.type = "button"; b.textContent = s[0];
+      b.addEventListener("click", () => show(i));
+      bar.appendChild(b);
+    });
+    show(0);
+  }
+
+  /* Chapter 9 lab */
+  {
+    const N = 6, D = 8, DP = 6, R = rng(2024), J = rng(99);
+    const M = (r, c, s) => Array.from({ length: r }, () => Array.from({ length: c }, () => gauss(R) * s));
+    const mv = (A, x) => A.map((row) => row.reduce((s, w, k) => s + w * x[k], 0));
+    const gelu = (x) => 0.5 * x * (1 + Math.tanh(0.7978845608 * (x + 0.044715 * x * x * x)));
+    const W = { emb: M(D, 5, 0.6), Wq: M(D, D, 0.5), Wk: M(D, D, 0.5), p1: M(DP, 4, 0.5), p2: M(DP, DP, 0.5),
+      bias: M(1, DP, 0.6)[0], gq: M(D, DP, 0.5), gk: M(D, DP, 0.5), ctx: M(DP, D, 0.5) };
+    let parts = [];
+    const newJet = () => {
+      parts = [];
+      for (let i = 0; i < N; i++) {
+        const pr = i % 2;
+        parts.push({ eta: (pr ? 0.22 : -0.2) + gauss(J) * 0.1, phi: (pr ? 0.12 : -0.14) + gauss(J) * 0.1, pt: i < 2 ? 60 + J() * 40 : 4 + J() * 25 });
+      }
+    };
+    newJet();
+    const pairFeat = (a, b) => {
+      const d = Math.max(1e-3, Math.hypot(a.eta - b.eta, a.phi - b.phi));
+      const mn = Math.min(a.pt, b.pt), kt = mn * d, z = mn / (a.pt + b.pt);
+      const m2 = 2 * a.pt * b.pt * (Math.cosh(a.eta - b.eta) - Math.cos(a.phi - b.phi));
+      return [Math.log(d), Math.log(Math.max(kt, 1e-3)), Math.log(z), Math.log(Math.max(m2, 1e-3))];
+    };
+    const softmax = (row) => { const m = Math.max(...row); const e = row.map((v) => Math.exp(v - m)); const s = e.reduce((a, b) => a + b, 0); return e.map((v) => v / s); };
+
+    function compute() {
+      const beta = +$("#sB").value, gamma = +$("#sG").value, mode = $("#sMode").value, agg = $("#sAgg").value;
+      const h = parts.map((p) => mv(W.emb, [Math.log(p.pt) / 3, p.eta * 4, p.phi * 4, 1, Math.hypot(p.eta, p.phi) * 4]));
+      const q = h.map((x) => mv(W.Wq, x)), k = h.map((x) => mv(W.Wk, x));
+      const rel = [], m2 = [];
+      for (let i = 0; i < N; i++) {
+        rel.push([]); m2.push([]);
+        for (let j = 0; j < N; j++) {
+          const u = i === j ? [0, 0, 0, 0] : pairFeat(parts[i], parts[j]);
+          m2[i].push(i === j ? NaN : u[3]);
+          rel[i].push(mv(W.p2, mv(W.p1, u).map(gelu)));
+        }
+      }
+      const sc = 1 / Math.sqrt(D), gq = [], gk = [];
+      const act = (z) => (mode === "id" ? 1 + Math.tanh(gamma * z) : 1 / (1 + Math.exp(-gamma * z)));
+      for (let i = 0; i < N; i++) {
+        let w;
+        if (agg === "att") {
+          const c = mv(W.ctx, h[i]);
+          w = softmax(rel[i].map((r, j) => (j === i ? -1e9 : r.reduce((s, v, t) => s + v * c[t], 0) / Math.sqrt(DP))));
+        } else w = rel[i].map((_, j) => (j === i ? 0 : 1 / (N - 1)));
+        const s = Array(DP).fill(0);
+        rel[i].forEach((r, j) => r.forEach((v, t) => (s[t] += w[j] * v)));
+        gq.push(mv(W.gq, s).map(act)); gk.push(mv(W.gk, s).map(act));
+      }
+      const plain = [], part = [], gds = [];
+      for (let i = 0; i < N; i++) {
+        const rp = [], rb = [], rg = [];
+        for (let j = 0; j < N; j++) {
+          const dot = q[i].reduce((s, v, c) => s + v * k[j][c], 0) * sc;
+          const b = beta * rel[i][j].reduce((s, v, t) => s + v * W.bias[t], 0);
+          const gdot = q[i].reduce((s, v, c) => s + v * gq[i][c] * k[j][c] * gk[j][c], 0) * sc;
+          rp.push(dot); rb.push(dot + b); rg.push(gdot);
+        }
+        plain.push(softmax(rp)); part.push(softmax(rb)); gds.push(softmax(rg));
+      }
+      return { plain, part, gds, gq, m2 };
+    }
+
+    const heat = (A, title, sub, col, fmt = (v) => Math.round(v * 100)) => {
+      const fin = A.flat().filter(Number.isFinite), lo = Math.min(...fin), hi = Math.max(...fin);
+      const cells = A.map((row) => row.map((v) => {
+        if (!Number.isFinite(v)) return `<div style="background:var(--panel2)"></div>`;
+        const t = (v - lo) / (hi - lo || 1);
+        return `<div style="background:${col};opacity:${(0.18 + 0.82 * t).toFixed(2)}">${fmt(v)}</div>`;
+      }).join("")).join("");
+      return `<div class="heatwrap">${title ? `<div class="t">${title}</div>` : ""}<div class="heat" style="grid-template-columns:repeat(${A.length},1fr)">${cells}</div><div class="s">${sub}</div></div>`;
+    };
+
+    const svg = $("#lab"), SX = (e) => 160 + e * 300, SY = (p) => 130 + p * 300;
+    function draw(focusIdx) {
+      const { plain, part, gds, gq, m2 } = compute();
+      svg.innerHTML = "";
+      el("rect", { x: 1, y: 1, width: 318, height: 258, rx: 8, fill: "none", stroke: css("--line") }, svg);
+      el("text", { x: 300, y: 252, "text-anchor": "end", "font-size": 11, fill: css("--muted") }, svg).textContent = "η →";
+      el("text", { x: 10, y: 20, "font-size": 11, fill: css("--muted") }, svg).textContent = "φ ↓";
+      for (let i = 0; i < N; i++) for (let j = i + 1; j < N; j++) {
+        const w = (gds[i][j] + gds[j][i]) / 2;
+        el("line", { x1: SX(parts[i].eta), y1: SY(parts[i].phi), x2: SX(parts[j].eta), y2: SY(parts[j].phi),
+          stroke: css("--blue"), "stroke-width": (0.5 + 6 * w).toFixed(2), opacity: (0.25 + 0.6 * w).toFixed(2) }, svg);
+      }
+      parts.forEach((p, i) => {
+        const c = el("circle", { cx: SX(p.eta), cy: SY(p.phi), r: (6 + Math.sqrt(p.pt) * 1.2).toFixed(1), fill: css(i < 2 ? "--orange" : "--violet"),
+          stroke: css("--ink"), "stroke-width": 1, tabindex: 0, style: "cursor:grab", "aria-label": `particle ${i + 1}, pT ${p.pt.toFixed(0)}, use arrow keys to move` }, svg);
+        c.dataset.i = i;
+        el("text", { x: SX(p.eta), y: SY(p.phi) + 4, "text-anchor": "middle", "font-size": 11, "pointer-events": "none", "font-weight": 700 }, svg).textContent = i + 1;
+      });
+      $("#hmM").innerHTML = heat(m2, "", "rows i, columns j (diagonal undefined)", css("--violet"), (v) => v.toFixed(1));
+      $("#hmRow").innerHTML =
+        heat(plain, "Plain attention", "content only: q·k/√d", css("--muted")) +
+        heat(part, "ParT", "q·k/√d + β·b<sub>ij</sub>", css("--orange")) +
+        heat(gds, "GDS gates", "(q⊙g<sup>Q</sup>)·(k⊙g<sup>K</sup>)/√d", css("--blue"));
+      const gm = gq.map((g) => g.reduce((a, b) => a + b, 0) / g.length), gmax = $("#sMode").value === "id" ? 2 : 1;
+      $("#gates").innerHTML = `<div class="bars">${gm.map((v) => `<i style="height:${Math.max(1, 100 * v / gmax).toFixed(0)}%" title="${v.toFixed(3)}"></i>`).join("")}</div>
+        <div style="display:flex;gap:3px;font:11px var(--mono);color:var(--muted)">${gm.map((v, i) => `<span style="flex:1;text-align:center">p${i + 1}<br>${v.toFixed(2)}</span>`).join("")}</div>`;
+      if (focusIdx !== undefined) { const f = svg.querySelector(`[data-i="${focusIdx}"]`); if (f) f.focus(); }
+    }
+    let drag = null;
+    const toLocal = (e) => { const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY; return pt.matrixTransform(svg.getScreenCTM().inverse()); };
+    svg.addEventListener("pointerdown", (e) => { if (e.target.dataset && e.target.dataset.i !== undefined) { drag = +e.target.dataset.i; svg.setPointerCapture(e.pointerId); } });
+    svg.addEventListener("pointermove", (e) => {
+      if (drag === null) return;
+      const p = toLocal(e);
+      parts[drag].eta = Math.max(-0.5, Math.min(0.5, (p.x - 160) / 300));
+      parts[drag].phi = Math.max(-0.4, Math.min(0.4, (p.y - 130) / 300));
+      draw();
+    });
+    svg.addEventListener("pointerup", () => (drag = null));
+    svg.addEventListener("keydown", (e) => {
+      const i = e.target.dataset ? e.target.dataset.i : undefined;
+      if (i === undefined) return;
+      const p = parts[+i], st = 0.02;
+      if (e.key === "ArrowLeft") p.eta -= st; else if (e.key === "ArrowRight") p.eta += st;
+      else if (e.key === "ArrowUp") p.phi -= st; else if (e.key === "ArrowDown") p.phi += st; else return;
+      e.preventDefault(); draw(+i);
+    });
+    for (const [id, out] of [["#sB", "#oB"], ["#sG", "#oG"]])
+      $(id).addEventListener("input", () => { $(out).textContent = (+$(id).value).toFixed(2); draw(); });
+    $("#sMode").addEventListener("change", () => draw());
+    $("#sAgg").addEventListener("change", () => draw());
+    $("#bShuffle").addEventListener("click", () => { newJet(); draw(); });
+    draw();
+  }
+
+  /* Fig 10.1 */
+  {
+    const g = $("#pipe");
+    const boxes = [["inputs", "(B,N,17) + 4-vec", "--line"], ["embeddings", "x (N,128), r (N,N,64)", "--violet"],
+      ["8 × GDS block", "gated attn + FFN", "--blue"], ["2 × class-attn", "CLS token", "--green"], ["MLP head", "128 → 10", "--line"], ["softmax", "p(class)", "--orange"]];
+    boxes.forEach(([t, s, c], i) => {
+      const x = 8 + i * 148;
+      el("rect", { x, y: 24, width: 134, height: 66, rx: 9, fill: css("--panel2"), stroke: css(c), "stroke-width": 1.5 }, g);
+      el("text", { x: x + 67, y: 52, "text-anchor": "middle", "font-weight": 600 }, g).textContent = t;
+      el("text", { x: x + 67, y: 73, "text-anchor": "middle", "font-size": 11.5, fill: css("--muted"), class: "mono" }, g).textContent = s;
+      if (i) el("path", { d: `M${x - 13} 57 H${x - 2}`, stroke: css("--muted"), "marker-end": "url(#ar)" }, g);
+    });
+  }
+
+  /* Fig 12.1 */
+  {
+    const g = $("#bar");
+    const data = [["PFN 100M", 0.772, "--muted"], ["P-CNN 100M", 0.809, "--muted"], ["ParticleNet 10M", 0.837, "--muted"],
+      ["GDS-ParT v1 10M", 0.827, "--violet"], ["GDS-ParT v2 10M", 0.848, "--blue"], ["ParT 10M", 0.850, "--orange"],
+      ["ParT plain 100M", 0.849, "--muted"], ["ParT 100M", 0.861, "--orange"]];
+    const x0 = 160, w = 680, lo = 0.76, hi = 0.866, X = (v) => x0 + ((v - lo) / (hi - lo)) * w;
+    [0.78, 0.80, 0.82, 0.84, 0.86].forEach((v) => {
+      el("line", { x1: X(v), x2: X(v), y1: 6, y2: 282, stroke: css("--line") }, g);
+      el("text", { x: X(v), y: 296, "text-anchor": "middle", "font-size": 11, fill: css("--muted"), class: "mono" }, g).textContent = v.toFixed(2);
+    });
+    data.forEach(([n, v, c], i) => {
+      const y = 10 + i * 34;
+      el("text", { x: x0 - 8, y: y + 17, "text-anchor": "end", "font-size": 12.5 }, g).textContent = n;
+      el("rect", { x: x0, y, width: X(v) - x0, height: 24, rx: 4, fill: css(c), opacity: 0.85 }, g);
+      el("text", { x: X(v) + 6, y: y + 17, "font-size": 12, class: "mono" }, g).textContent = v.toFixed(3);
+    });
+  }
+
+  /* TOC highlight */
+  {
+    const links = [...document.querySelectorAll("nav.toc a")];
+    const io = new IntersectionObserver((es) => {
+      for (const e of es) if (e.isIntersecting) links.forEach((a) => a.classList.toggle("on", a.getAttribute("href") === "#" + e.target.id));
+    }, { rootMargin: "-40% 0px -55% 0px" });
+    document.querySelectorAll("section.ch").forEach((s) => io.observe(s));
+  }
+})();
+</script>
+</body>
+</html>

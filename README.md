@@ -25,6 +25,8 @@ For comparison, ParticleNet trained on 10M jets reaches 0.837 accuracy and 0.983
 
 To set up a new machine (lab workstation, HPC, Colab) and find out where the JetClass data must go, see **[GUIDE.md](GUIDE.md)**.
 
+**Visual explainer:** [`docs/gds_vs_part.html`](docs/gds_vs_part.html) is an interactive page that builds both architectures from tensors upward. It covers the full math of ParT's additive bias and of GDS gating, and includes a live toy model that compares the attention maps.
+
 **Follow-up project:** [GDS-ParT-MoE](https://github.com/Avinashistoocool/GDS-parT-MoE) replaces the particle FFNs with a per-particle Mixture-of-Experts and measures what physics each expert learns.
 
 ## Why this is different
