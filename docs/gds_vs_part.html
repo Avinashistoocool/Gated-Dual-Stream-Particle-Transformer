@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -52,6 +52,7 @@
   .eq .lbl { float: right; font: 12px var(--mono); color: var(--muted); margin-left: 18px; }
   .m { font-family: var(--serif); font-style: italic; }
   .shape { font: 13.5px var(--mono); color: var(--green); background: var(--code); padding: 1px 6px; border-radius: 5px; white-space: nowrap; }
+  pre { font: 13px/1.55 var(--mono); background: var(--code); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; overflow-x: auto; }
   code { font: 13.5px var(--mono); background: var(--code); padding: 1px 6px; border-radius: 5px; }
   table { border-collapse: collapse; width: 100%; font-size: 14.5px; margin: 10px 0; }
   th, td { border-bottom: 1px solid var(--line); padding: 7px 10px; text-align: left; vertical-align: top; }
@@ -984,7 +985,57 @@
     </div>
   </details>
 
-  <!-- DOUBTS:APPEND (new doubts go above this line, numbered Q11, Q12, ...) -->
+  <details class="doubt" data-tags="architecture">
+    <summary><span class="qn">Q11</span><span class="qt">Where exactly are the gates implemented in the code?</span><span class="meta"><span class="tag gds">architecture</span><span class="chev">▶</span></span></summary>
+    <div class="ans">
+      <div class="tldr"><b>Short answer:</b> everything is in <code>gds_part_colab.py</code>. The <code>RelationalGate</code> class (lines 135–189) <b>makes</b> the gates. One line in <code>GatedDualStreamAttention.forward</code> (line 224, <code>q, k = q * gate_q, k * gate_k</code>) <b>applies</b> them. The model and block classes decide <b>which</b> gate is used: one shared gate, or one per layer.</div>
+      <table>
+        <tr><th>Step</th><th>Line</th><th>Code</th><th>What it does</th></tr>
+        <tr><td>1 · build pair stream</td><td class="n">333</td><td><code>rel = self.pairwise_embed(pairwise_features)</code></td><td>(B,N,N,4) → (B,N,N,64)</td></tr>
+        <tr><td>2a · shared gate</td><td class="n">308, 340</td><td><code>self.rel_gate = RelationalGate(...)</code><br><code>gates = self.rel_gate(rel, key_padding_mask=mask)</code></td><td>one gate pair, computed once and used by every block (the trained v2 run)</td></tr>
+        <tr><td>2b · per-layer gate</td><td class="n">256, 263</td><td><code>self.gate = RelationalGate(..., conditioned=True)</code><br><code>gate_q, gate_k = self.gate(rel, mask, x=h)</code></td><td>each block has its own gate, conditioned on that block's state h</td></tr>
+        <tr><td>3 · summarise pairs</td><td class="n">176–187</td><td><code>alpha = softmax(einsum("bijd,bid-&gt;bij", rel, ctx(x)))</code><br><code>summary = einsum("bij,bijd-&gt;bid", alpha, rel)</code><br>or <code>(rel*m).sum(2)/denom</code></td><td>(N,N,64) → (N,64): attention-weighted or masked mean over neighbours j</td></tr>
+        <tr><td>4 · gate MLPs</td><td class="n">155–163</td><td><code>query_gate = _mlp(64, 128)</code>, <code>key_gate = _mlp(64, 128)</code></td><td>Linear 64→128, GELU, Linear 128→128. The last layer is zero-initialised (161–162).</td></tr>
+        <tr><td>5 · activation</td><td class="n">165–166</td><td><code>1.0 + torch.tanh(z)</code> (or <code>sigmoid</code> in v1)</td><td>gate ∈ (0, 2), exactly 1 at initialisation</td></tr>
+        <tr><td>6 · output</td><td class="n">189</td><td><code>return act(query_gate(s)), act(key_gate(s))</code></td><td>g<sup>Q</sup>, g<sup>K</sup>: (B,N,128) each</td></tr>
+        <tr><td>7 · <b>apply</b></td><td class="n">224</td><td><code>q, k = q * gate_q, k * gate_k</code></td><td><b>the gating itself</b>: element-wise ⊙ before the heads are split</td></tr>
+        <tr><td>8 · ParT bias</td><td class="n">335</td><td><code>attn_mask = self.pair_bias(rel).permute(0,3,1,2)</code></td><td>the additive bias (B,H,N,N), passed as an attention mask</td></tr>
+        <tr><td>9 · attention</td><td class="n">229</td><td><code>F.scaled_dot_product_attention(q, k, v, attn_mask=...)</code></td><td>softmax(q′k′ᵀ/√d + bias)·v</td></tr>
+      </table>
+      <h4>The core, in order</h4>
+      <pre>
+# gds_part_colab.py
+class RelationalGate(nn.Module):                                   # L135
+    def forward(self, rel, key_padding_mask=None, x=None):
+        ...                                                        # summary s_i  (B,N,64)
+        return self._act(self.query_gate(summary)), \
+               self._act(self.key_gate(summary))                   # L189  g^Q, g^K (B,N,128)
+
+class GatedDualStreamAttention(nn.Module):
+    def forward(self, x, gate_q, gate_k, attn_mask=None):
+        q, k = self.q_proj(x), self.k_proj(x)
+        if gate_q is not None:
+            q, k = q * gate_q, k * gate_k                          # L224  ← THE GATE
+        ...
+        out = F.scaled_dot_product_attention(q, k, v, attn_mask)  # L229
+
+class GDSParTBlock(nn.Module):
+    def forward(self, x, rel, gates, attn_mask, key_padding_mask):
+        h = self.norm1(x)
+        gate_q, gate_k = self.gate(rel, mask, x=h) if self.gate else gates   # L263/265
+        x = x + self.attn(h, gate_q, gate_k, attn_mask)</pre>
+      <h4>Switches (train_gds_part.py flags)</h4>
+      <ul>
+        <li><code>--gate_mode identity|sigmoid|none</code>: <code>none</code> skips line 224 completely. This was the <code>no_gate</code> ablation.</li>
+        <li><code>--per_layer_gate 1|0</code>: path 2b (per-block, conditioned) or path 2a (shared mean). The 10M results use <code>0</code>.</li>
+        <li><code>--pair_bias 1|0</code>: whether line 335 adds the ParT bias.</li>
+      </ul>
+      <p>V is never gated, and the gates act on all 128 channels before the split into 8 heads × 16. In the MoE repo, <code>moe.py</code> reuses the same <code>RelationalGate</code> and attention classes unchanged.</p>
+      <p class="asked">asked 27 Oct 2026 · line numbers refer to <code>gds_part_colab.py</code> at commit <code>438146d</code></p>
+    </div>
+  </details>
+
+  <!-- DOUBTS:APPEND (new doubts go above this line, numbered Q12, Q13, ...) -->
   </div>
   <p class="small" id="dEmpty" hidden>No doubts match that search.</p>
 </section>
