@@ -509,6 +509,7 @@
   </div>
   <div class="grid3" id="hmRow" style="margin-top:14px"></div>
   <p class="small">Each row i is one softmax distribution showing how much particle i attends to each particle j. Cell values are weights × 100.</p>
+  <div class="note"><b>These maps are not "better" or "worse".</b> The toy weights are random and untrained, so no map here is correct. The lab only shows <i>how</i> each formula reshapes attention: the bias shifts individual cells, while the gates change the whole comparison and can spread or sharpen rows. Whether that helps can only be measured on real data; see <a href="#q9">Q9</a>.</div>
 </section>
 
 <section class="ch" id="c10">
@@ -862,7 +863,62 @@
     </div>
   </details>
 
-  <!-- DOUBTS:APPEND (new doubts go above this line, numbered Q9, Q10, ...) -->
+  <details class="doubt" data-tags="architecture">
+    <summary><span class="qn">Q9</span><span class="qt">Does the gating even do anything? The GDS map in the lab looks worse.</span><span class="meta"><span class="tag gds">architecture</span><span class="chev">▶</span></span></summary>
+    <div class="ans">
+      <div class="tldr"><b>Short answer:</b> the trained model uses its gates heavily, and switching them off costs <b>9.6 points</b> of accuracy. But a model trained <i>without</i> gates (pair bias only) scored the same in the small ablation. So far, the honest conclusion is that <b>the gates are used, but have not yet been shown to beat ParT's bias</b>. The lab picture says nothing either way, because its weights are random.</div>
+
+      <h4>1. The lab screenshot</h4>
+      <p>In the toy, plain and ParT give sharp rows, for example particle 6 putting 92–93% on particle 1, while GDS spreads attention more evenly. That is not a quality judgement. The toy's gate MLPs have random weights, so the gates rescale channels arbitrarily and scramble the comparison. A trained model learns gates that help the loss. Sharper attention is not automatically better either: a jet tagger often needs to pool many soft particles.</p>
+
+      <h4>2. Does the trained model use the gates? Yes, strongly.</h4>
+      <p>Measured on 50k validation jets with the 10-epoch v2 checkpoint (shared gate + bias):</p>
+      <table>
+        <tr><th>Gate</th><th class="n">mean</th><th class="n">std</th><th class="n">range</th><th class="n">mean |g − 1|</th><th class="n">channels with |g − 1| &gt; 0.5</th></tr>
+        <tr><td>g<sup>Q</sup></td><td class="n">0.94</td><td class="n">0.47</td><td class="n">0.00 – 2.00</td><td class="n">0.39</td><td class="n">33%</td></tr>
+        <tr><td>g<sup>K</sup></td><td class="n">0.97</td><td class="n">0.51</td><td class="n">0.00 – 2.00</td><td class="n">0.43</td><td class="n">40%</td></tr>
+      </table>
+      <p>The gates started at exactly 1. After training they span the full (0, 2) range, with some channels fully switched off and others doubled, and they differ strongly from particle to particle (per-channel std ≈ 0.37). They are far from idle.</p>
+
+      <h4>3. Knock-out: force every gate to 1 in the trained model</h4>
+      <div class="speed" role="img" aria-label="Accuracy with and without gates">
+        <div class="row"><span>gates on</span><div class="track"><div class="fill" style="width:84.8%;background:var(--blue)"></div></div><span class="mono">84.82%</span></div>
+        <div class="row"><span>gates forced to 1</span><div class="track"><div class="fill" style="width:75.2%;background:var(--orange)"></div></div><span class="mono">75.21%</span></div>
+      </div>
+      <table>
+        <tr><th>class</th><th class="n">Hcc</th><th class="n">Wqq</th><th class="n">H4q</th><th class="n">Zqq</th><th class="n">Tbqq</th><th class="n">Tbl</th><th class="n">Hqql</th><th class="n">QCD</th><th class="n">Hgg</th><th class="n">Hbb</th></tr>
+        <tr><td>Δ accuracy (pp)</td><td class="n">−26.2</td><td class="n">−22.8</td><td class="n">−18.4</td><td class="n">−12.0</td><td class="n">−8.6</td><td class="n">−3.3</td><td class="n">−2.1</td><td class="n">−2.0</td><td class="n">−0.9</td><td class="n">+0.3</td></tr>
+      </table>
+      <p>The losses are concentrated in the multi-prong and quark-flavour classes (Hcc, W, H→4q, Z, top). These are exactly the classes where a particle's substructure neighbourhood should matter. <b>Caveat:</b> this shows the network <i>depends</i> on its gates, because the other weights co-adapted to them. It does not show that gates are better than the alternatives.</p>
+
+      <h4>4. The fair test: train without gates from scratch</h4>
+      <p>Small ablation: 300k training jets, 2 epochs, identical settings, 500k validation jets.</p>
+      <table>
+        <tr><th>Variant</th><th class="n">Params</th><th class="n">Val acc</th><th class="n">Val AUC</th></tr>
+        <tr><td>shared gate + bias (the trained v2)</td><td class="n">2.07M</td><td class="n">0.6966</td><td class="n">0.9509</td></tr>
+        <tr><td><b>no gate, bias only (ParT-style)</b></td><td class="n">2.02M</td><td class="n">0.6942</td><td class="n">0.9508</td></tr>
+        <tr><td>per-layer gates + bias</td><td class="n">2.49M</td><td class="n">0.6933</td><td class="n">0.9507</td></tr>
+        <tr><td>gates only, no bias</td><td class="n">2.49M</td><td class="n">0.6223</td><td class="n">0.9315</td></tr>
+      </table>
+      <ul>
+        <li><b>Gates + bias and bias alone are tied</b> (difference 0.2 pp, within run-to-run noise). At this budget, adding gates neither helps nor hurts.</li>
+        <li><b>Gates alone are clearly worse</b> than bias alone (−7 pp). The exact per-pair term is the stronger ingredient, because gates can only make factorised, rank-1-per-channel pair weights (<a href="#c8">Chapter 8</a>).</li>
+        <li>The trained network still leans on its gates (point 3) because, given gates, it routes information through them. Without gates, the bias and the FFNs learn to do the same job.</li>
+        <li>At 10M jets, v2 gets 0.848 against 0.850 for the published ParT. That is also consistent with "no measurable gain yet".</li>
+      </ul>
+
+      <h4>5. What would settle it</h4>
+      <ol>
+        <li>Train <code>--gate_mode none</code> at the full 10M jets / 10 epochs, with the same seed and the same 1M-jet test set. This is the real, like-for-like gates-versus-no-gates comparison.</li>
+        <li>Repeat each run with 2–3 seeds to get error bars, since the expected differences are a few tenths of a point.</li>
+        <li>Check data efficiency: gates may help more with less data, or in specific classes (Hcc, W, Z), even if overall accuracy is unchanged.</li>
+        <li>Check interpretability: if the gates line up with physics (displaced tracks, prong membership), they are useful as an analysis tool even without an accuracy gain.</li>
+      </ol>
+      <p class="asked">asked 27 Oct 2026 · numbers from <code>ablations_noema/ABLATIONS.md</code> and a gate-knockout run on <code>checkpoints/v2_shared_10M_10ep/best.pt</code></p>
+    </div>
+  </details>
+
+  <!-- DOUBTS:APPEND (new doubts go above this line, numbered Q10, Q11, ...) -->
   </div>
   <p class="small" id="dEmpty" hidden>No doubts match that search.</p>
 </section>
