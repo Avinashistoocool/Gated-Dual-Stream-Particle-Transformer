@@ -326,7 +326,7 @@
       Without nonlinearities, stacked linear layers collapse into a single linear map. The GDS v1 gates used <b>sigmoid</b>, which can only shrink a channel. v2 uses <b>1 + tanh</b>, which can shrink <i>or</i> amplify a channel and equals 1 when its input is 0.</div>
     <div class="card"><h4>3. LayerNorm</h4>
       <div class="eq">LN(x) = γ ⊙ (x − μ)/√(σ² + ε) + β</div>
-      LayerNorm normalises each particle's vector to mean 0 and variance 1 across its channels, then rescales it with learned γ and β. This keeps activations stable through many layers. Both models apply it <i>before</i> each sub-layer ("pre-LN").</div>
+      LayerNorm normalises each particle's vector to mean 0 and variance 1 across its channels, then rescales it with learned γ and β. Here ⊙ is element-wise: channel c is multiplied by γ<sub>c</sub>, and the result is still a vector, not a dot product (<a href="#q5">Q5</a>). This keeps activations stable through many layers. Both models apply it <i>before</i> each sub-layer ("pre-LN").</div>
     <div class="card"><h4>4. Residual connection</h4>
       <div class="eq">x ← x + F(LN(x))</div>
       Each layer only adds a correction to x. Gradients can flow straight back through the "+", which makes deep stacks trainable.</div>
@@ -703,7 +703,38 @@
     </div>
   </details>
 
-  <!-- DOUBTS:APPEND (new doubts go above this line, numbered Q5, Q6, ...) -->
+  <details class="doubt" data-tags="architecture">
+    <summary><span class="qn">Q5</span><span class="qt">What is LayerNorm? Is γ ⊙ (x − μ) a dot product?</span><span class="meta"><span class="tag gds">architecture</span><span class="chev">▶</span></span></summary>
+    <div class="ans">
+      <div class="tldr"><b>Short answer:</b> no. ⊙ is the <b>element-wise (Hadamard) product</b>: channel c is multiplied by its own γ<sub>c</sub>, and the result is still a vector of 128 numbers. A dot product would add them all up into one number and destroy the vector.</div>
+      <p>LayerNorm acts on <b>one particle's vector</b> x ∈ ℝ<sup>128</sup> at a time:</p>
+      <div class="eq">μ = (1/D) Σ<sub>c</sub> x<sub>c</sub>, &nbsp; σ² = (1/D) Σ<sub>c</sub> (x<sub>c</sub> − μ)², &nbsp; LN(x)<sub>c</sub> = γ<sub>c</sub> · (x<sub>c</sub> − μ)/√(σ² + ε) + β<sub>c</sub></div>
+      <ol>
+        <li><b>Centre:</b> subtract the mean of the particle's 128 channels, so the vector has mean 0.</li>
+        <li><b>Scale:</b> divide by the standard deviation, so the vector has variance 1. ε = 10<sup>−5</sup> prevents division by zero.</li>
+        <li><b>Re-style:</b> multiply channel c by a learned γ<sub>c</sub> and add a learned β<sub>c</sub>. This lets the network restore any scale or offset it actually needs. γ starts at 1 and β at 0.</li>
+      </ol>
+      <h4>Worked example (D = 4)</h4>
+      <table>
+        <tr><th></th><th class="n">c=1</th><th class="n">c=2</th><th class="n">c=3</th><th class="n">c=4</th><th>note</th></tr>
+        <tr><td>x</td><td class="n">2</td><td class="n">4</td><td class="n">6</td><td class="n">8</td><td>μ = 5, σ² = 5, σ ≈ 2.236</td></tr>
+        <tr><td>(x − μ)/σ</td><td class="n">−1.34</td><td class="n">−0.45</td><td class="n">0.45</td><td class="n">1.34</td><td>mean 0, variance 1</td></tr>
+        <tr><td>γ (learned)</td><td class="n">1.0</td><td class="n">2.0</td><td class="n">0.5</td><td class="n">1.0</td><td></td></tr>
+        <tr><td>γ ⊙ (…)</td><td class="n">−1.34</td><td class="n">−0.89</td><td class="n">0.22</td><td class="n">1.34</td><td>still 4 numbers (a vector)</td></tr>
+        <tr><td>+ β (β = 0.1)</td><td class="n">−1.24</td><td class="n">−0.79</td><td class="n">0.32</td><td class="n">1.44</td><td>output</td></tr>
+      </table>
+      <p>A dot product γ·(x − μ)/σ would instead give the single number −1.34 − 0.89 + 0.22 + 1.34 = −0.67, which is not what LayerNorm does.</p>
+      <h4>Why the model needs it</h4>
+      <ul>
+        <li>As x passes through 8 residual blocks, its scale can drift. LayerNorm resets the scale before each attention and FFN, which keeps q·k/√d and the softmax in a sensible range and keeps training stable.</li>
+        <li>It normalises across the <b>channels of one particle</b>, not across the batch, unlike BatchNorm. Each particle and each jet is therefore treated independently, and padded particles cannot leak into real ones.</li>
+        <li>In this code it appears as <code>norm1</code> (before attention), <code>norm2</code> (before the FFN), the input <code>LayerNorm(17)</code> in the particle embedding, and <code>final_norm</code> before the classifier.</li>
+      </ul>
+      <p class="asked">asked 27 Oct 2026 · see <a href="#c3">Chapter 3</a></p>
+    </div>
+  </details>
+
+  <!-- DOUBTS:APPEND (new doubts go above this line, numbered Q6, Q7, ...) -->
   </div>
   <p class="small" id="dEmpty" hidden>No doubts match that search.</p>
 </section>
