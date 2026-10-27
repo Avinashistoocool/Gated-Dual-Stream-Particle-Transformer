@@ -1035,7 +1035,85 @@ class GDSParTBlock(nn.Module):
     </div>
   </details>
 
-  <!-- DOUBTS:APPEND (new doubts go above this line, numbered Q12, Q13, ...) -->
+  <details class="doubt" data-tags="architecture">
+    <summary><span class="qn">Q12</span><span class="qt">Okay, but what do the gates actually <i>do</i> in the trained model?</span><span class="meta"><span class="tag gds">architecture</span><span class="chev">▶</span></span></summary>
+    <div class="ans">
+      <div class="tldr"><b>Short answer:</b> the gates learned a <b>core-versus-periphery switch</b>. Particles in the hard, dense <b>core</b> of the jet get amplified <b>queries</b>: they "ask loudly". Particles on the soft, sparse, wide-angle <b>periphery</b> get amplified <b>keys</b>: they "answer loudly". Leptons get their own distinct gate pattern. Overall, the gates make the core's attention slightly sharper and point it outwards.</div>
+
+      <p>Measured on 20k validation jets (784k particles) with the trained 10M checkpoint, by correlating each particle's gates with its physics:</p>
+      <table>
+        <tr><th>Particle property</th><th class="n">corr with mean g<sup>Q</sup></th><th class="n">corr with mean g<sup>K</sup></th><th>Reading</th></tr>
+        <tr><td>ΔR to jet axis</td><td class="n" style="color:var(--orange)">−0.71</td><td class="n" style="color:var(--blue)">+0.69</td><td>wide-angle particles: weak query, strong key</td></tr>
+        <tr><td>neighbours within ΔR &lt; 0.1</td><td class="n" style="color:var(--blue)">+0.48</td><td class="n" style="color:var(--orange)">−0.67</td><td>dense core: strong query, weak key</td></tr>
+        <tr><td>ln p<sub>T</sub></td><td class="n" style="color:var(--blue)">+0.53</td><td class="n">−0.18</td><td>hard particles ask more</td></tr>
+        <tr><td>p<sub>T</sub> share</td><td class="n" style="color:var(--blue)">+0.50</td><td class="n">−0.16</td><td>same, relative to the jet</td></tr>
+        <tr><td>jet multiplicity</td><td class="n">−0.21</td><td class="n">+0.23</td><td>busy jets: everyone answers a bit more</td></tr>
+        <tr><td>charge, |d<sub>0</sub>|, species</td><td class="n">|r| ≤ 0.15</td><td class="n">|r| ≤ 0.27</td><td>weak on average (but see leptons below)</td></tr>
+      </table>
+
+      <figure>
+      <svg viewBox="0 0 720 250" width="100%" role="img" aria-label="Core particles have strong queries, peripheral particles have strong keys">
+        <g font-size="13">
+          <circle cx="200" cy="125" r="105" fill="none" stroke="var(--line)" stroke-dasharray="4 5"/>
+          <circle cx="200" cy="125" r="40" fill="rgba(90,169,255,.10)" stroke="var(--blue)"/>
+          <text x="200" y="70" text-anchor="middle" font-size="11" fill="var(--blue)">core</text>
+          <g fill="var(--blue)"><circle cx="190" cy="120" r="7"/><circle cx="210" cy="132" r="6"/><circle cx="198" cy="140" r="5"/><circle cx="214" cy="112" r="5"/></g>
+          <g fill="var(--orange)"><circle cx="120" cy="80" r="3.5"/><circle cx="285" cy="95" r="3.5"/><circle cx="130" cy="190" r="3.5"/><circle cx="275" cy="180" r="4"/><circle cx="105" cy="140" r="3"/></g>
+          <g stroke="var(--blue)" stroke-width="2" opacity=".7" marker-end="url(#ar)">
+            <path d="M192 118 L126 84"/><path d="M212 130 L270 177"/><path d="M212 113 L279 97"/><path d="M196 140 L136 186"/>
+          </g>
+          <text x="200" y="245" text-anchor="middle" font-size="12" fill="var(--muted)">arrows: core queries reaching out to peripheral keys</text>
+          <g transform="translate(370,40)">
+            <rect width="330" height="78" rx="10" fill="var(--panel2)" stroke="var(--blue)"/>
+            <text x="14" y="26" font-weight="600" fill="var(--blue)">Core particle (hard, dense, near axis)</text>
+            <text x="14" y="48" fill="var(--sub)">g<tspan font-size="9" baseline-shift="super">Q</tspan> ↑ amplified query → its scores get bigger</text>
+            <text x="14" y="68" fill="var(--sub)">g<tspan font-size="9" baseline-shift="super">K</tspan> ↓ quieter key → is attended to less</text>
+            <rect y="96" width="330" height="78" rx="10" fill="var(--panel2)" stroke="var(--orange)"/>
+            <text x="14" y="122" font-weight="600" fill="var(--orange)">Peripheral particle (soft, wide, isolated)</text>
+            <text x="14" y="144" fill="var(--sub)">g<tspan font-size="9" baseline-shift="super">Q</tspan> ↓ quieter query → flatter, averaging attention</text>
+            <text x="14" y="164" fill="var(--sub)">g<tspan font-size="9" baseline-shift="super">K</tspan> ↑ louder key → stands out to the core</text>
+          </g>
+        </g>
+      </svg>
+      <figcaption>The learned role split, from the correlations above.</figcaption>
+      </figure>
+
+      <h4>Why that makes sense</h4>
+      <p>Score s<sub>ij</sub> = Σ<sub>c</sub> q<sub>ic</sub>g<sup>Q</sup><sub>ic</sub> · k<sub>jc</sub>g<sup>K</sup><sub>jc</sub>. Bigger gates give bigger |s|, and bigger |s| makes the softmax <b>sharper</b>.</p>
+      <ul>
+        <li>For a core particle i (large g<sup>Q</sup>) looking at a peripheral j (large g<sup>K</sup>), the score is boosted on both sides. The core picks out <i>specific</i> peripheral particles, which is what you need to find the soft partners and wide-angle radiation that separate W/Z/H/top from QCD.</li>
+        <li>A peripheral particle (small g<sup>Q</sup>) has damped scores, so it spreads its attention and mostly <i>averages</i> its context.</li>
+        <li>Core-to-core scores are damped on the key side. The core does not waste attention on its own neighbours, which it already "knows" through the pair bias.</li>
+      </ul>
+      <p>The effect on sharpness in block 0 is real but modest. Normalised attention entropy is 0.680 with gates and 0.690 with gates set to 1. For the hardest 10% of particles it is 0.581 versus 0.596, and for the softest 50% it is 0.725 versus 0.739.</p>
+
+      <h4>Individual channels behave like feature detectors</h4>
+      <table>
+        <tr><th>g<sup>Q</sup> channel</th><th class="n">std across particles</th><th>tracks</th></tr>
+        <tr><td>125</td><td class="n">0.64</td><td>ln p<sub>T</sub> (r = +0.62): open for hard particles</td></tr>
+        <tr><td>19, 115</td><td class="n">0.59, 0.49</td><td>local density (r ≈ +0.55): open in the dense core</td></tr>
+        <tr><td>93, 85</td><td class="n">0.53, 0.50</td><td>local density (r ≈ −0.47): open for isolated particles</td></tr>
+        <tr><td>94</td><td class="n">0.51</td><td>ln p<sub>T</sub> (r = −0.47): open for soft particles</td></tr>
+      </table>
+      <p>So the gates do more than set a single "loudness". They open and close <i>different</i> query channels for hard/dense and soft/isolated particles, which changes <i>which features</i> are compared.</p>
+
+      <h4>Leptons get their own gate pattern</h4>
+      <table>
+        <tr><th>type</th><th class="n">mean g<sup>Q</sup></th><th class="n">channels switched off (&lt;0.2)</th><th class="n">channels doubled (&gt;1.8)</th></tr>
+        <tr><td>charged hadron</td><td class="n">0.94</td><td class="n">6%</td><td class="n">3%</td></tr>
+        <tr><td>photon</td><td class="n">0.93</td><td class="n">7%</td><td class="n">2%</td></tr>
+        <tr><td>electron</td><td class="n">0.92</td><td class="n">12%</td><td class="n">6%</td></tr>
+        <tr><td>muon</td><td class="n">0.91</td><td class="n">13%</td><td class="n">8%</td></tr>
+      </table>
+      <p>Leptons switch about twice as many channels hard on or off. Their gate direction is also different: the cosine similarity of the average gate deviation is 0.09 between muon and charged hadron, and 0.81 between electron and muon. Leptons mark W decays in Hqql and Tbl jets, and the gates give them a separate way of comparing themselves to the rest of the jet.</p>
+
+      <h4>The caveat (from Q9)</h4>
+      <p>This is the role the gates <b>took on</b> in this network. A model trained without gates reached the same accuracy in the small ablation, so the same core-versus-periphery logic can also be learned by the pair bias and the FFNs. The gates make this structure <b>explicit and readable</b>; they have not yet been shown to make it <i>better</i>.</p>
+      <p class="asked">asked 27 Oct 2026 · measured on 20k val jets with <code>checkpoints/v2_shared_10M_10ep/best.pt</code> (shared gate)</p>
+    </div>
+  </details>
+
+  <!-- DOUBTS:APPEND (new doubts go above this line, numbered Q13, Q14, ...) -->
   </div>
   <p class="small" id="dEmpty" hidden>No doubts match that search.</p>
 </section>
