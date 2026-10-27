@@ -1113,7 +1113,55 @@ class GDSParTBlock(nn.Module):
     </div>
   </details>
 
-  <!-- DOUBTS:APPEND (new doubts go above this line, numbered Q13, Q14, ...) -->
+  <details class="doubt" data-tags="architecture">
+    <summary><span class="qn">Q13</span><span class="qt">What does gating the query achieve, and what does gating the key achieve?</span><span class="meta"><span class="tag gds">architecture</span><span class="chev">▶</span></span></summary>
+    <div class="ans">
+      <div class="tldr"><b>Short answer:</b> the <b>query gate</b> controls <i>how particle i searches</i>: which features it looks for and how sharply it chooses. The <b>key gate</b> controls <i>how particle j presents itself</i>: which of its features can be matched and how strongly it stands out. In the trained model the query gate carries most of the work. Removing it alone costs 12.5 points, while removing the key gate alone costs 1.8.</div>
+
+      <h4>The math: two different jobs</h4>
+      <div class="eq">s<sub>ij</sub> = (1/√d) Σ<sub>c</sub> <b style="color:var(--blue)">g<sup>Q</sup><sub>ic</sub></b> q<sub>ic</sub> · <b style="color:var(--orange)">g<sup>K</sup><sub>jc</sub></b> k<sub>jc</sub></div>
+      <div class="grid2">
+        <div class="card gds"><h4>Query gate g<sup>Q</sup><sub>i</sub>: the searcher's lens</h4>
+          <ul>
+            <li>Depends on the <b>row</b> i only, so it reshapes particle i's whole attention row s<sub>i,·</sub>.</li>
+            <li><b>Which features to search on.</b> Setting channel c to 0 means "ignore feature c when I look"; setting it to 2 means "care twice as much about feature c".</li>
+            <li><b>How sharply to choose.</b> Scaling all of i's channels up multiplies its scores, which lowers the softmax temperature: i picks a few partners. Scaling down flattens the row, so i averages over everyone.</li>
+            <li>It changes only i's own view. It never changes how others see i.</li>
+          </ul></div>
+        <div class="card part"><h4>Key gate g<sup>K</sup><sub>j</sub>: the target's label</h4>
+          <ul>
+            <li>Depends on the <b>column</b> j only, so it reshapes how particle j is scored by <i>everyone</i> (column s<sub>·,j</sub>).</li>
+            <li><b>Which features are visible.</b> Closing channel c hides that feature of j from every searcher.</li>
+            <li><b>How strongly j stands out.</b> Larger keys make j win more of every row it appears in.</li>
+            <li>It acts like a <i>content-aware</i> per-particle salience. It works through q·k, so it helps only for searchers whose query aligns with j's key.</li>
+          </ul></div>
+      </div>
+      <p><b>Why two gates and not one?</b> A single gate on Q·K would apply the same factor to the searcher and the searched. Two separate gates let the model make particle i <i>search</i> in one way and <i>be found</i> in another. For example, a dense core particle can search hard while staying quiet as a target (Q12). Their product g<sup>Q</sup><sub>ic</sub>g<sup>K</sup><sub>jc</sub> gives a pair-specific weight for every channel, but one that factorises into (something about i) × (something about j).</p>
+      <p><b>Why not gate V?</b> The gates decide <i>who</i> is listened to. The content passed along (v<sub>j</sub>) is left untouched, so the message itself is not distorted. Value-side reweighting is left to the FFN.</p>
+
+      <h4>Evidence: switch off one gate at a time (trained 10M model, 50k val jets)</h4>
+      <div class="speed" role="img" aria-label="Accuracy with each gate removed">
+        <div class="row"><span>both gates (trained)</span><div class="track"><div class="fill" style="width:84.8%;background:var(--green)"></div></div><span class="mono">84.82%</span></div>
+        <div class="row"><span>key gate off (g<sup>K</sup> = 1)</span><div class="track"><div class="fill" style="width:83.0%;background:var(--orange)"></div></div><span class="mono">83.02%</span></div>
+        <div class="row"><span>both off</span><div class="track"><div class="fill" style="width:75.2%;background:var(--pink)"></div></div><span class="mono">75.21%</span></div>
+        <div class="row"><span>query gate off (g<sup>Q</sup> = 1)</span><div class="track"><div class="fill" style="width:72.3%;background:var(--blue)"></div></div><span class="mono">72.32%</span></div>
+      </div>
+      <table>
+        <tr><th>Δ accuracy (pp)</th><th class="n">Hcc</th><th class="n">H4q</th><th class="n">Wqq</th><th class="n">Zqq</th><th class="n">Tbqq</th><th class="n">QCD</th><th class="n">Hgg</th><th class="n">Hbb</th><th class="n">Hqql</th><th class="n">Tbl</th></tr>
+        <tr><td>query gate off</td><td class="n">−50.5</td><td class="n">−40.1</td><td class="n">−14.7</td><td class="n">−13.0</td><td class="n">−11.1</td><td class="n">+3.3</td><td class="n">+6.6</td><td class="n">−1.1</td><td class="n">−2.7</td><td class="n">−1.7</td></tr>
+        <tr><td>key gate off</td><td class="n">−2.4</td><td class="n">+0.9</td><td class="n">−9.2</td><td class="n">+0.6</td><td class="n">−0.8</td><td class="n">−2.5</td><td class="n">−2.8</td><td class="n">+0.1</td><td class="n">−0.3</td><td class="n">−1.5</td></tr>
+      </table>
+      <ul>
+        <li><b>The query gate is the important one.</b> Without it, Hcc and H→4q collapse (−50 and −40 points). The predictions drift towards QCD and H→gg, which gain accuracy because jets are being misclassified into them. Charm and four-prong tagging rely on core particles searching for specific partners, which is exactly the query-side role found in Q12.</li>
+        <li><b>The key gate is a fine-tuner.</b> Its main effect is on W→qq′ (−9 points), where telling the two quark prongs apart depends on which particles stand out as targets.</li>
+        <li><b>Removing only the query gate is worse than removing both</b> (72.3% compared with 75.2%). The two gates were trained as a <i>matched pair</i>: large keys were tuned against damped queries and vice versa. Keeping the key gates while resetting the queries leaves keys too loud for the queries they were built for, and the scores go off-scale. This shows the gates co-adapted. They act as one mechanism with two halves, not as two independent knobs.</li>
+      </ul>
+      <div class="note">Same caveat as Q9: this shows how <i>this</i> network splits the work between the two gates. Whether a query-only gate trained from scratch would match the full model is a separate experiment that has not been run yet (<code>gate_k</code> fixed to 1 during training).</div>
+      <p class="asked">asked 27 Oct 2026 · knockout on 50k val jets, <code>checkpoints/v2_shared_10M_10ep/best.pt</code></p>
+    </div>
+  </details>
+
+  <!-- DOUBTS:APPEND (new doubts go above this line, numbered Q14, Q15, ...) -->
   </div>
   <p class="small" id="dEmpty" hidden>No doubts match that search.</p>
 </section>
