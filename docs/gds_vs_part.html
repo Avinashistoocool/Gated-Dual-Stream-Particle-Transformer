@@ -85,6 +85,61 @@
   .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; color: var(--sub); }
   .legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; background: var(--c); vertical-align: -1px; }
   img.fig { width: 100%; border-radius: 10px; border: 1px solid var(--line); background: #fff; }
+
+  /* ---------- visual polish ---------- */
+  body { background:
+      radial-gradient(1200px 600px at 85% -10%, rgba(90,169,255,.10), transparent 60%),
+      radial-gradient(900px 500px at 10% 30%, rgba(169,139,255,.07), transparent 60%),
+      var(--bg); background-attachment: fixed; }
+  #progress { position: fixed; top: 0; left: 0; height: 3px; width: 0; z-index: 20;
+    background: linear-gradient(90deg, var(--orange), var(--violet), var(--blue)); }
+  header.hero { position: relative; overflow: hidden; padding: 96px 0 56px; }
+  header.hero canvas { position: absolute; inset: 0; width: 100%; height: 100%; opacity: .55; pointer-events: none; }
+  header.hero > *:not(canvas) { position: relative; }
+  h1 .grad, h2 .grad { background: linear-gradient(90deg, var(--orange), var(--violet) 50%, var(--blue));
+    -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+  .chips a { font: 12.5px var(--mono); text-decoration: none; color: var(--sub); border: 1px solid var(--line);
+    background: var(--panel); padding: 5px 12px; border-radius: 999px; transition: border-color .15s, color .15s; }
+  .chips a:hover, .chips a:focus-visible { color: var(--ink); border-color: var(--blue); outline: none; }
+  .chno { display: inline-flex; align-items: center; gap: 10px; }
+  .chno::before { content: attr(data-n); display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 9px;
+    font-weight: 700; color: var(--ink); background: linear-gradient(135deg, rgba(255,157,77,.25), rgba(90,169,255,.25));
+    border: 1px solid var(--line); }
+  section.ch { animation: rise .6s ease both; animation-timeline: view(); animation-range: entry 0% entry 30%; }
+  @keyframes rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { section.ch { animation: none; } }
+  .card { transition: transform .15s, border-color .15s, box-shadow .15s; }
+  .card:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--blue) 40%, var(--line)); }
+  .eq { box-shadow: inset 0 0 0 1px rgba(255,255,255,.02), 0 8px 24px -18px rgba(0,0,0,.6); }
+  nav.toc a.doubt-link { margin-top: 10px; border: 1px dashed var(--line); }
+
+  /* ---------- doubts ---------- */
+  .doubt-tools { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 18px 0; }
+  .doubt-tools input { flex: 1 1 260px; background: var(--panel); color: var(--ink); border: 1px solid var(--line);
+    border-radius: 10px; padding: 9px 12px; font: 14px system-ui, sans-serif; }
+  .doubt-tools input:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+  .doubt-tools button[aria-pressed=true] { border-color: var(--blue); color: var(--blue); }
+  .doubt { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; margin: 12px 0; overflow: hidden; }
+  .doubt[open] { border-color: color-mix(in srgb, var(--violet) 45%, var(--line)); }
+  .doubt summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: auto 1fr auto; gap: 14px; align-items: center; padding: 16px 18px; }
+  .doubt summary::-webkit-details-marker { display: none; }
+  .doubt summary:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
+  .doubt .qn { font: 700 13px var(--mono); color: var(--violet); background: rgba(169,139,255,.12); border-radius: 8px; padding: 4px 8px; }
+  .doubt .qt { font-weight: 600; font-size: 16.5px; }
+  .doubt .meta { display: flex; gap: 6px; align-items: center; }
+  .doubt .meta .tag { font-size: 11px; }
+  .doubt .chev { transition: transform .2s; color: var(--muted); }
+  .doubt[open] .chev { transform: rotate(90deg); }
+  .doubt .ans { padding: 0 22px 18px 22px; border-top: 1px solid var(--line); }
+  .doubt .ans .tldr { margin: 14px 0 6px; padding: 10px 14px; border-radius: 10px; background: rgba(90,169,255,.08);
+    border-left: 3px solid var(--blue); }
+  .doubt .asked { font: 12px var(--mono); color: var(--muted); }
+  .speed { display: grid; gap: 10px; margin: 12px 0; }
+  .speed .row { display: grid; grid-template-columns: 210px 1fr 110px; gap: 12px; align-items: center; font-size: 14px; }
+  .speed .track { height: 16px; background: var(--panel2); border-radius: 999px; overflow: hidden; }
+  .speed .fill { height: 100%; border-radius: 999px; }
+  @media (max-width: 700px) { .speed .row { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
@@ -106,18 +161,25 @@
   <a href="#c12">12 · Results</a>
   <a href="#c13">13 · Beyond: MoE</a>
   <a href="#c14">14 · Glossary</a>
+  <a href="#doubts" class="doubt-link">❓ Doubts &amp; answers</a>
 </nav>
+<div id="progress" aria-hidden="true"></div>
 
 <main>
 <header class="hero">
+  <canvas id="heroJet" aria-hidden="true"></canvas>
   <div class="kicker">A VISUAL DOCUMENTARY · PARTICLE TRANSFORMERS</div>
-  <h1>How a transformer reads a particle jet, and two ways of teaching it physics</h1>
+  <h1>How a transformer reads a particle jet, and <span class="grad">two ways of teaching it physics</span></h1>
   <p class="lede">This page compares <b style="color:var(--orange)">ParT</b> (Particle Transformer, Qu et al. 2022) with <b style="color:var(--blue)">GDS-ParT</b> (Gated Dual-Stream Particle Transformer) and builds every idea from the start. It covers tensors, layers and attention, then both architectures with their full math. An interactive model computes both kinds of attention live in your browser.</p>
   <p class="small">Numbers on this page come from this repository: <code>gds_part_colab.py</code>, <code>data/jetclass_cache.py</code>, <code>train_gds_part.py</code> and <code>results/v2_shared_10M_10ep</code>.</p>
+  <div class="chips">
+    <a href="#c2">Start from tensors</a><a href="#c6">Jump to ParT</a><a href="#c7">Jump to GDS-ParT</a>
+    <a href="#c9">Try the interactive lab</a><a href="#doubts">Read the doubts</a>
+  </div>
 </header>
 
 <section class="ch" id="c0">
-  <div class="chno">CHAPTER 0</div>
+  <div class="chno" data-n="0">CHAPTER 0</div>
   <h2>The question both models answer</h2>
   <p>At the LHC, a single quark or gluon turns into a narrow spray of up to 100+ particles called a <b>jet</b>. Different originating particles leave different patterns inside the jet. A Higgs boson decaying to two b-quarks produces two hard sub-clusters with displaced tracks; a top quark produces three. The task is <b>jet tagging</b>: given the list of particles in one jet, decide which of 10 processes produced it.</p>
   <p>A transformer is a natural fit because a jet is a <i>set</i>: the particles have no natural order. But physics also depends on <b>pairs</b> of particles (their angle, their combined mass), and a plain transformer cannot see pairs directly. Both models feed pairwise physics in, at different places:</p>
@@ -133,7 +195,7 @@
 </section>
 
 <section class="ch" id="c1">
-  <div class="chno">CHAPTER 1</div>
+  <div class="chno" data-n="1">CHAPTER 1</div>
   <h2>Jets and the physics inputs</h2>
   <p class="lede">The models see two kinds of numbers: 17 numbers <b>per particle</b> and 4 numbers <b>per pair of particles</b>.</p>
   <h3>Coordinates: η, φ and p<sub>T</sub></h3>
@@ -207,7 +269,7 @@
 </section>
 
 <section class="ch" id="c2">
-  <div class="chno">CHAPTER 2</div>
+  <div class="chno" data-n="2">CHAPTER 2</div>
   <h2>Tensors from zero</h2>
   <p class="lede">A tensor is a grid of numbers with a <b>shape</b>, which lists how many entries there are along each axis. Everything in these models is a tensor, and reading shapes is the most useful skill for understanding the code.</p>
   <figure>
@@ -251,7 +313,7 @@
 </section>
 
 <section class="ch" id="c3">
-  <div class="chno">CHAPTER 3</div>
+  <div class="chno" data-n="3">CHAPTER 3</div>
   <h2>Neural-network building blocks</h2>
   <p class="lede">Every module in both models is assembled from six pieces.</p>
   <div class="grid2">
@@ -278,7 +340,7 @@
 </section>
 
 <section class="ch" id="c4">
-  <div class="chno">CHAPTER 4</div>
+  <div class="chno" data-n="4">CHAPTER 4</div>
   <h2>Embeddings: two streams</h2>
   <p class="lede">Raw features are lifted into learned vector spaces. This gives the "dual stream": a <b>particle stream</b> <span class="shape">(B, N, 128)</span> and a <b>pair stream</b> <span class="shape">(B, N, N, 64)</span>. Both models build these streams the same way.</p>
   <div class="eq">x<sub><span class="m">i</span></sub><sup>(0)</sup> = <span class="m">W</span><sub>b</sub> GELU( <span class="m">W</span><sub>a</sub> LN(f<sub><span class="m">i</span></sub>) ) &nbsp;∈ ℝ<sup>128</sup><span class="lbl">ParticleEmbedding 17→128→128</span></div>
@@ -306,7 +368,7 @@
 </section>
 
 <section class="ch" id="c5">
-  <div class="chno">CHAPTER 5</div>
+  <div class="chno" data-n="5">CHAPTER 5</div>
   <h2>Self-attention from scratch</h2>
   <p class="lede">Attention lets every particle gather information from every other particle, weighted by relevance. Click through the steps.</p>
   <div class="stepper" role="group" aria-label="Attention steps" id="attnSteps"></div>
@@ -323,7 +385,7 @@
 </section>
 
 <section class="ch" id="c6">
-  <div class="chno">CHAPTER 6</div>
+  <div class="chno" data-n="6">CHAPTER 6</div>
   <h2><span style="color:var(--orange)">ParT</span>: physics as an additive attention bias</h2>
   <p class="lede">ParT (Qu, Li &amp; Qian, ICML 2022) maps each pair's embedding to one number per head and adds it to that pair's attention score.</p>
   <div class="eq">b<sup>(h)</sup><sub><span class="m">ij</span></sub> = (<span class="m">W</span><sub>bias</sub> r<sub><span class="m">ij</span></sub>)<sub>h</sub> &nbsp;&nbsp;&nbsp; a<sup>(h)</sup><sub><span class="m">ij</span></sub> = softmax<sub><span class="m">j</span></sub>( q<sup>(h)</sup><sub><span class="m">i</span></sub>·k<sup>(h)</sup><sub><span class="m">j</span></sub>/√<span class="m">d</span> + <b style="color:var(--orange)">b<sup>(h)</sup><sub><span class="m">ij</span></sub></b> )<span class="lbl">ψ(U) = W<sub>bias</sub>·r, shape (B,H,N,N)</span></div>
@@ -344,7 +406,7 @@
 </section>
 
 <section class="ch" id="c7">
-  <div class="chno">CHAPTER 7</div>
+  <div class="chno" data-n="7">CHAPTER 7</div>
   <h2><span style="color:var(--blue)">GDS-ParT</span>: physics as multiplicative gates on Q and K</h2>
   <p class="lede">GDS-ParT asks a different question: <i>given what this particle's relations say about its neighbourhood, which features should it emphasise when it asks (Q) and when it answers (K)?</i></p>
   <h3>Step 1: summarise each particle's pairs</h3>
@@ -393,7 +455,7 @@
 </section>
 
 <section class="ch" id="c8">
-  <div class="chno">CHAPTER 8</div>
+  <div class="chno" data-n="8">CHAPTER 8</div>
   <h2>Side by side: what each mechanism can express</h2>
   <p class="lede">Expanding the gated score channel by channel makes the difference exact.</p>
   <div class="eq">q′<sub><span class="m">i</span></sub>·k′<sub><span class="m">j</span></sub> = Σ<sub><span class="m">c</span></sub> q<sub><span class="m">ic</span></sub> k<sub><span class="m">jc</span></sub> · <b style="color:var(--blue)">g<sup>Q</sup><sub><span class="m">ic</span></sub> g<sup>K</sup><sub><span class="m">jc</span></sub></b> = q<sub><span class="m">i</span></sub><sup>⊤</sup> <b style="color:var(--blue)">diag(g<sup>Q</sup><sub><span class="m">i</span></sub> ⊙ g<sup>K</sup><sub><span class="m">j</span></sub>)</b> k<sub><span class="m">j</span></sub><span class="lbl">a pair-dependent metric</span></div>
@@ -421,7 +483,7 @@
 </section>
 
 <section class="ch" id="c9">
-  <div class="chno">CHAPTER 9</div>
+  <div class="chno" data-n="9">CHAPTER 9</div>
   <h2>Interactive lab: compute both attentions live</h2>
   <p class="lede">A toy jet with 6 particles and a tiny model (d = 8, pair dimension 6, one head) with fixed random weights. <b>Drag the particles</b>, or focus one and use the arrow keys. The pair features, ParT bias, gates and all three attention maps are recomputed from the formulas above.</p>
   <div class="ctrl">
@@ -450,7 +512,7 @@
 </section>
 
 <section class="ch" id="c10">
-  <div class="chno">CHAPTER 10</div>
+  <div class="chno" data-n="10">CHAPTER 10</div>
   <h2>The full model and how it is trained</h2>
   <figure class="flow">
   <svg viewBox="0 0 900 120" width="100%" role="img" aria-label="Full model pipeline"><g id="pipe" font-size="12.5"></g></svg>
@@ -484,7 +546,7 @@
 </section>
 
 <section class="ch" id="c11">
-  <div class="chno">CHAPTER 11</div>
+  <div class="chno" data-n="11">CHAPTER 11</div>
   <h2>Cost and complexity</h2>
   <table>
     <tr><th>Component</th><th class="n">Parameters</th><th>Compute per jet</th><th>Memory</th></tr>
@@ -498,7 +560,7 @@
 </section>
 
 <section class="ch" id="c12">
-  <div class="chno">CHAPTER 12</div>
+  <div class="chno" data-n="12">CHAPTER 12</div>
   <h2>Results</h2>
   <p>GDS-ParT v2 was trained on 10M jets for 10 epochs on a 6 GB laptop GPU and tested on 1M balanced JetClass test jets. The published numbers come from Tables 1 and 3 of the ParT paper.</p>
   <figure><svg viewBox="0 0 900 300" width="100%" role="img" aria-label="Accuracy comparison bar chart"><g id="bar"></g></svg>
@@ -519,7 +581,7 @@
 </section>
 
 <section class="ch" id="c13">
-  <div class="chno">CHAPTER 13</div>
+  <div class="chno" data-n="13">CHAPTER 13</div>
   <h2>Beyond: the per-particle Mixture-of-Experts</h2>
   <p>The follow-up repository <a href="https://github.com/Avinashistoocool/GDS-parT-MoE">GDS-ParT-MoE</a> keeps the gated attention and replaces each block's FFN with 8 expert FFNs plus a router:</p>
   <div class="eq">π<sub><span class="m">i</span></sub> = softmax(<span class="m">W</span><sub>r</sub>h<sub><span class="m">i</span></sub>), &nbsp; T<sub><span class="m">i</span></sub> = top-2(π<sub><span class="m">i</span></sub>), &nbsp; FFN<sub>MoE</sub>(h<sub><span class="m">i</span></sub>) = Σ<sub><span class="m">e</span>∈T<sub>i</sub></sub> (π<sub><span class="m">ie</span></sub> / Σ<sub><span class="m">e′</span>∈T<sub>i</sub></sub> π<sub><span class="m">ie′</span></sub>) · FFN<sub><span class="m">e</span></sub>(h<sub><span class="m">i</span></sub>)</div>
@@ -527,7 +589,7 @@
 </section>
 
 <section class="ch" id="c14">
-  <div class="chno">CHAPTER 14</div>
+  <div class="chno" data-n="14">CHAPTER 14</div>
   <h2>Glossary</h2>
   <table>
     <tr><td><b>Tensor</b></td><td>an n-dimensional grid of numbers; its shape lists the size of each axis</td></tr>
@@ -547,6 +609,103 @@
     <tr><td><b>Rej<sub>X%</sub></b></td><td>1 / (QCD mistag rate) at X% signal efficiency</td></tr>
   </table>
   <p class="small">References: H. Qu, C. Li, S. Qian, <i>Particle Transformer for Jet Tagging</i>, ICML 2022, arXiv:2202.03772. JetClass dataset, Zenodo record 6619768. H. Touvron et al., <i>Going deeper with Image Transformers</i> (CaiT class attention), 2021.</p>
+</section>
+
+<section class="ch" id="doubts">
+  <div class="chno" data-n="?">DOUBTS &amp; ANSWERS</div>
+  <h2><span class="grad">Doubts</span>, answered</h2>
+  <p class="lede">Questions asked while building this project, each answered in place. New questions are added to the end of this list.</p>
+  <div class="doubt-tools">
+    <input id="dq" type="search" placeholder="Search doubts…" aria-label="Search doubts">
+    <button class="b" type="button" data-f="all" aria-pressed="true">all</button>
+    <button class="b" type="button" data-f="architecture" aria-pressed="false">architecture</button>
+    <button class="b" type="button" data-f="moe" aria-pressed="false">MoE</button>
+    <button class="b" type="button" data-f="compute" aria-pressed="false">compute</button>
+    <button class="b" type="button" id="dExpand">expand all</button>
+  </div>
+  <div id="doubtList">
+
+  <details class="doubt" data-tags="architecture">
+    <summary><span class="qn">Q1</span><span class="qt">What exactly is the "new attention" in GDS-ParT?</span><span class="meta"><span class="tag gds">architecture</span><span class="chev">▶</span></span></summary>
+    <div class="ans">
+      <div class="tldr"><b>Short answer:</b> before attention compares two particles, every particle rescales its query and key channels with gates. The gates are computed from that particle's pairwise physics with all its neighbours. Pairs therefore change <i>how particles are compared</i>, not just the final score.</div>
+      <p>In normal attention, particle i compares itself with particle j through s<sub>ij</sub> = q<sub>i</sub>·k<sub>j</sub>/√d. GDS-ParT adds three steps in front of this comparison:</p>
+      <ol>
+        <li><b>Summarise the pairs.</b> Particle i has a pair vector r<sub>ij</sub> (64 numbers built from Δ, k<sub>T</sub>, z, m²) for each neighbour j. These are averaged into one summary s<sub>i</sub>. The average is uniform in shared mode; in per-layer mode it is weighted by α<sub>ij</sub> = softmax<sub>j</sub>(r<sub>ij</sub>·W<sub>ctx</sub>h<sub>i</sub>/8).</li>
+        <li><b>Make gates.</b> g<sup>Q</sup><sub>i</sub> = 1 + tanh(MLP<sub>Q</sub>(s<sub>i</sub>)) and g<sup>K</sup><sub>i</sub> = 1 + tanh(MLP<sub>K</sub>(s<sub>i</sub>)), one value in (0, 2) per channel. They start at exactly 1.</li>
+        <li><b>Gate Q and K.</b> q′<sub>i</sub> = q<sub>i</sub>⊙g<sup>Q</sup><sub>i</sub>, k′<sub>j</sub> = k<sub>j</sub>⊙g<sup>K</sup><sub>j</sub>. V is left untouched.</li>
+      </ol>
+      <div class="eq">s<sub>ij</sub> = Σ<sub>c</sub> q<sub>ic</sub>k<sub>jc</sub> · g<sup>Q</sup><sub>ic</sub>g<sup>K</sup><sub>jc</sub> / √d &nbsp;(+ b<sub>ij</sub> in the v2 hybrid)</div>
+      <p>Each channel's contribution to the score is amplified or suppressed according to the physical neighbourhood of <i>both</i> particles. In effect, the gates give each pair a learned diagonal metric. The v2 model also keeps ParT's additive bias b<sub>ij</sub>, because a product of per-particle gates cannot single out one exact pair (see <a href="#c8">Chapter 8</a>).</p>
+      <p class="asked">asked 27 Oct 2026 · see also <a href="#c7">Chapter 7</a>, <a href="#c9">the lab</a></p>
+    </div>
+  </details>
+
+  <details class="doubt" data-tags="architecture">
+    <summary><span class="qn">Q2</span><span class="qt">What is GDS-ParT right now (version, size, score, status)?</span><span class="meta"><span class="tag gds">architecture</span><span class="chev">▶</span></span></summary>
+    <div class="ans">
+      <div class="tldr"><b>Short answer:</b> v2 is a hybrid model: multiplicative Q/K gates plus the ParT bias, CLS pooling, 8 layers and 2.07M parameters. After 10 epochs on 10M jets it reaches <b>84.8% accuracy, AUC 0.985</b>, which is within 0.2 points of ParT at the same data size.</div>
+      <table>
+        <tr><th>Part</th><th>v1 (original)</th><th>v2 (current)</th></tr>
+        <tr><td>Gate</td><td>sigmoid ∈ (0,1)</td><td>1 + tanh ∈ (0,2), zero-initialised</td></tr>
+        <tr><td>Pair summary</td><td>uniform mean, shared by all layers</td><td>shared mean (trained run) or attention-weighted per layer</td></tr>
+        <tr><td>ParT bias</td><td>no</td><td>yes (hybrid)</td></tr>
+        <tr><td>Pooling</td><td>masked mean</td><td>2 class-attention blocks (CLS token)</td></tr>
+        <tr><td>Depth / params</td><td>6 layers / 1.28M</td><td>8 layers / 2.07M</td></tr>
+        <tr><td>Test acc (10M jets)</td><td>0.827</td><td><b>0.848</b></td></tr>
+      </table>
+      <p><b>In progress:</b> a 20-epoch run on 10M jets. Epoch 8 is saved (val 0.8473), and the run is resuming on the lab PC from <code>checkpoints/v2_shared_10M_20ep/last.pt</code>.</p>
+      <p class="asked">asked 27 Oct 2026 · see <a href="#c12">Results</a></p>
+    </div>
+  </details>
+
+  <details class="doubt" data-tags="moe architecture">
+    <summary><span class="qn">Q3</span><span class="qt">How does the Mixture-of-Experts (MoE) version work?</span><span class="meta"><span class="tag" style="color:var(--violet);border-color:var(--violet)">MoE</span><span class="chev">▶</span></span></summary>
+    <div class="ans">
+      <div class="tldr"><b>Short answer:</b> each block's feed-forward network becomes 8 expert FFNs and a small router. For every particle, the router picks the 2 best experts and mixes their outputs. Because routing happens per particle, you can check which kinds of particles each expert handles.</div>
+      <div class="eq">π<sub>i</sub> = softmax(W<sub>r</sub>h<sub>i</sub>) ∈ ℝ<sup>8</sup>, &nbsp; T<sub>i</sub> = top-2(π<sub>i</sub>), &nbsp; y<sub>i</sub> = Σ<sub>e∈T<sub>i</sub></sub> (π<sub>ie</sub>/Σ<sub>e′∈T<sub>i</sub></sub>π<sub>ie′</sub>) · FFN<sub>e</sub>(h<sub>i</sub>)</div>
+      <ul>
+        <li><b>Only the FFN changes.</b> The gated attention, the pair bias and the CLS pooling are identical to GDS-ParT. Padding particles are never routed.</li>
+        <li><b>Sparse upcycling.</b> All 8 experts start as copies of the trained dense FFN (plus 1% noise). The untrained MoE therefore reproduces the dense model exactly (val 0.8488), and fine-tuning lets the experts drift apart and specialise.</li>
+        <li><b>Keeping experts balanced.</b> A load-balancing loss N·Σ<sub>e</sub> f<sub>e</sub>·P̄<sub>e</sub> stops all particles from going to one expert, and a z-loss mean(logsumexp(logits)²) keeps router logits small. Both are added to the cross-entropy loss.</li>
+        <li><b>Cost.</b> 9.46M parameters in total, but each particle uses only about 3.1M, because just 2 of the 8 experts run.</li>
+        <li><b>Reading the physics.</b> <code>analyze_experts.py</code> measures the mutual information between the chosen expert and particle type, charge, p<sub>T</sub> share, ΔR, |d<sub>0</sub>| and Lund k<sub>T</sub>. It also removes one expert at a time to see which jet classes suffer.</li>
+      </ul>
+      <p><b>First finding:</b> layer-0 experts split particles by charge (NMI 0.45) and species (0.43). One expert is 4.5× enriched in muons and displaced tracks and is used most by H→bb̄ jets. The deeper layers had not specialised yet after a short fine-tune.</p>
+      <p class="asked">asked 27 Oct 2026 · see <a href="#c13">Chapter 13</a>, <a href="https://github.com/Avinashistoocool/GDS-parT-MoE">GDS-parT-MoE</a></p>
+    </div>
+  </details>
+
+  <details class="doubt" data-tags="compute">
+    <summary><span class="qn">Q4</span><span class="qt">Why is training so slow on the lab PC? What is the difference between a CPU and a GPU?</span><span class="meta"><span class="tag" style="color:var(--green);border-color:var(--green)">compute</span><span class="chev">▶</span></span></summary>
+    <div class="ans">
+      <div class="tldr"><b>Short answer:</b> the lab PC has no working NVIDIA GPU, so PyTorch runs everything on the CPU. Training is mostly huge batches of identical multiply-adds, which a GPU executes thousands at a time. The same epoch runs 10–25× slower on the CPU.</div>
+      <div class="speed" role="img" aria-label="Throughput comparison">
+        <div class="row"><span>Laptop GPU (RTX 4050, 6 GB)</span><div class="track"><div class="fill" style="width:100%;background:var(--blue)"></div></div><span class="mono">~2,500–3,000 jets/s</span></div>
+        <div class="row"><span>Lab CPU alone (i5-14500, 20 threads)</span><div class="track"><div class="fill" style="width:11%;background:var(--orange)"></div></div><span class="mono">~310 jets/s</span></div>
+        <div class="row"><span>Lab CPU shared with the MoE run</span><div class="track"><div class="fill" style="width:4%;background:var(--pink)"></div></div><span class="mono">~110 jets/s</span></div>
+      </div>
+      <div class="grid2">
+        <div class="card"><h4>CPU: a few fast, clever cores</h4>
+          About 14 cores (20 threads) at around 5 GHz. Each core is optimised for branching, sequential logic, and low latency. A CPU does roughly 1 TFLOP/s in float32 for this kind of work.</div>
+        <div class="card"><h4>GPU: thousands of simple cores</h4>
+          Thousands of small cores and tensor cores run the same instruction on different data (SIMT). An RTX 4050 does about 40+ TFLOP/s in float16 with tensor cores, and its memory bandwidth is several times higher than the CPU's.</div>
+      </div>
+      <p><b>Why this model is especially GPU-hungry:</b></p>
+      <ul>
+        <li><b>Batched matrix multiplies.</b> Every layer computes QKᵀ, the pair embedding and the FFNs as large matrix multiplies, which is exactly the work GPUs are built for.</li>
+        <li><b>The N² pair stream.</b> One jet with N = 128 has 128 × 128 × 64 ≈ 1M pair numbers per layer. Moving that much data needs high memory bandwidth.</li>
+        <li><b>Mixed precision.</b> On the GPU the model runs in float16 on tensor cores. On a CPU, AMP is off and everything runs in float32.</li>
+        <li><b>Two jobs on one CPU.</b> When the dense run and the MoE run share 20 threads, they compete for the cores and the cache, so each gets much less than half the throughput.</li>
+      </ul>
+      <p><b>What that means in time:</b> one epoch of 10M jets takes about 65 minutes on the laptop GPU. On the lab CPU it takes about 9 hours alone and more than 24 hours when shared. That is why the runs are now queued one after another, and why access to a GPU node on an HPC cluster would help.</p>
+      <p class="asked">asked 23 Oct 2026</p>
+    </div>
+  </details>
+
+  <!-- DOUBTS:APPEND (new doubts go above this line, numbered Q5, Q6, ...) -->
+  </div>
+  <p class="small" id="dEmpty" hidden>No doubts match that search.</p>
 </section>
 </main>
 
@@ -826,6 +985,75 @@
       for (const e of es) if (e.isIntersecting) links.forEach((a) => a.classList.toggle("on", a.getAttribute("href") === "#" + e.target.id));
     }, { rootMargin: "-40% 0px -55% 0px" });
     document.querySelectorAll("section.ch").forEach((s) => io.observe(s));
+  }
+
+  /* reading progress */
+  {
+    const bar = $("#progress");
+    const upd = () => { const h = document.documentElement; bar.style.width = (100 * h.scrollTop / Math.max(1, h.scrollHeight - h.clientHeight)) + "%"; };
+    addEventListener("scroll", upd, { passive: true }); upd();
+  }
+
+  /* hero: particles streaming out along two jet axes, with faint attention links */
+  {
+    const cv = $("#heroJet"), ctx = cv.getContext("2d");
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const cols = ["--orange", "--violet", "--blue", "--green"].map(css);
+    let W, H, P = [];
+    const R = rng(11);
+    const size = () => { const d = Math.min(devicePixelRatio || 1, 2); W = cv.clientWidth; H = cv.clientHeight;
+      cv.width = W * d; cv.height = H * d; ctx.setTransform(d, 0, 0, d, 0, 0); };
+    const spawn = () => {
+      const axis = R() < 0.5 ? -0.35 : 0.3, a = axis + gauss(R) * 0.12, sp = 0.4 + R() * 1.4;
+      return { x: W * 0.62, y: H * 0.55, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.9, life: 0, max: 220 + R() * 200, c: cols[(R() * 4) | 0], r: 1 + R() * 2.4 };
+    };
+    const tick = () => {
+      ctx.clearRect(0, 0, W, H);
+      while (P.length < 70) P.push(spawn());
+      for (const p of P) { p.x += p.vx; p.y += p.vy; p.life++; }
+      P = P.filter((p) => p.life < p.max && p.x < W + 20 && p.y > -20 && p.y < H + 20);
+      ctx.lineWidth = 1;
+      for (let i = 0; i < P.length; i++) for (let j = i + 1; j < P.length; j++) {
+        const dx = P[i].x - P[j].x, dy = P[i].y - P[j].y, d2 = dx * dx + dy * dy;
+        if (d2 < 3600) { ctx.strokeStyle = `rgba(90,169,255,${(0.18 * (1 - d2 / 3600)).toFixed(3)})`;
+          ctx.beginPath(); ctx.moveTo(P[i].x, P[i].y); ctx.lineTo(P[j].x, P[j].y); ctx.stroke(); }
+      }
+      for (const p of P) { ctx.globalAlpha = Math.max(0, 1 - p.life / p.max); ctx.fillStyle = p.c;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 7); ctx.fill(); }
+      ctx.globalAlpha = 1;
+      if (!reduce) requestAnimationFrame(tick);
+    };
+    size(); addEventListener("resize", size);
+    if (reduce) { for (let k = 0; k < 160; k++) { tick(); } } else requestAnimationFrame(tick);
+  }
+
+  /* doubts: search, filter, expand, deep-link */
+  {
+    const items = [...document.querySelectorAll("#doubtList .doubt")];
+    const q = $("#dq"), btns = [...document.querySelectorAll(".doubt-tools [data-f]")];
+    let tag = "all";
+    const apply = () => {
+      const s = q.value.trim().toLowerCase(); let shown = 0;
+      for (const d of items) {
+        const ok = (tag === "all" || d.dataset.tags.split(" ").includes(tag)) && (!s || d.textContent.toLowerCase().includes(s));
+        d.hidden = !ok; if (ok) shown++;
+        if (s && ok) d.open = true;
+      }
+      $("#dEmpty").hidden = shown > 0;
+    };
+    q.addEventListener("input", apply);
+    btns.forEach((b) => b.addEventListener("click", () => {
+      tag = b.dataset.f; btns.forEach((x) => x.setAttribute("aria-pressed", String(x === b))); apply();
+    }));
+    const ex = $("#dExpand");
+    ex.addEventListener("click", () => {
+      const open = ex.textContent === "expand all";
+      items.forEach((d) => { if (!d.hidden) d.open = open; });
+      ex.textContent = open ? "collapse all" : "expand all";
+    });
+    items.forEach((d, i) => { d.id = "q" + (i + 1); });
+    const fromHash = () => { const d = location.hash && document.querySelector(location.hash + ".doubt"); if (d) { d.open = true; d.scrollIntoView(); } };
+    addEventListener("hashchange", fromHash); fromHash();
   }
 })();
 </script>
