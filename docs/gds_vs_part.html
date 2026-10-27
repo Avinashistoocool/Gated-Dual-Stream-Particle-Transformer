@@ -825,7 +825,44 @@
     </div>
   </details>
 
-  <!-- DOUBTS:APPEND (new doubts go above this line, numbered Q8, Q9, ...) -->
+  <details class="doubt" data-tags="architecture">
+    <summary><span class="qn">Q8</span><span class="qt">What is an MLP?</span><span class="meta"><span class="tag gds">architecture</span><span class="chev">▶</span></span></summary>
+    <div class="ans">
+      <div class="tldr"><b>Short answer:</b> an MLP (multi-layer perceptron) is a stack of linear layers with a nonlinearity between them: y = W<sub>2</sub>·GELU(W<sub>1</sub>x + b<sub>1</sub>) + b<sub>2</sub>. It is the basic learnable function in deep learning, and in this model it is applied to each particle, or each pair, independently.</div>
+      <figure>
+      <svg viewBox="0 0 640 220" width="100%" role="img" aria-label="MLP diagram with input, hidden and output layers">
+        <g id="mlpg"></g>
+      </svg>
+      <figcaption>An MLP with 4 inputs, 6 hidden units and 3 outputs. Every line is one learned weight.</figcaption>
+      </figure>
+      <h4>The pieces</h4>
+      <ul>
+        <li><b>Perceptron (one neuron):</b> h = φ(w·x + b), a weighted sum of the inputs plus a bias, passed through a nonlinearity φ.</li>
+        <li><b>Layer:</b> many neurons side by side, which is just a matrix multiply: h = φ(Wx + b), with one row of W per neuron.</li>
+        <li><b>Multi-layer:</b> the output of one layer feeds the next. The middle layers are called "hidden".</li>
+      </ul>
+      <h4>Why the nonlinearity is essential</h4>
+      <p>Without φ, two layers collapse into one: W<sub>2</sub>(W<sub>1</sub>x) = (W<sub>2</sub>W<sub>1</sub>)x is still a single linear map. The GELU between them lets the MLP build <b>bends and thresholds</b>, such as "fire only if p<sub>T</sub> is high <i>and</i> the particle is charged". With enough hidden units, an MLP can approximate any smooth function (the universal approximation theorem).</p>
+      <h4>Tiny example</h4>
+      <p>Input x = (p<sub>T</sub>-feature, is-charged) = (2.0, 1). Suppose one hidden unit has w = (1, 1) and b = −2.5:</p>
+      <div class="eq">h = GELU(1·2.0 + 1·1 − 2.5) = GELU(0.5) ≈ 0.35 &nbsp;&nbsp; but for a neutral (2.0, 0): GELU(−0.5) ≈ −0.15</div>
+      <p>The unit responds to "hard <i>and</i> charged". Training adjusts every w and b with gradient descent until such units become useful for classifying jets.</p>
+      <h4>Every MLP in GDS-ParT</h4>
+      <table>
+        <tr><th>Where</th><th>Shape</th><th>Applied to</th><th>Job</th></tr>
+        <tr><td>ParticleEmbedding</td><td>17 → 128 → 128</td><td>each particle</td><td>turn physics features into a learned vector</td></tr>
+        <tr><td>PairwiseEmbedding</td><td>4 → 64 → 64</td><td>each of the N² pairs</td><td>turn Δ, k<sub>T</sub>, z, m² into a relation vector</td></tr>
+        <tr><td>Gate MLP<sub>Q</sub>, MLP<sub>K</sub></td><td>64 → 128 → 128</td><td>each particle's pair summary</td><td>produce the gates (then 1 + tanh)</td></tr>
+        <tr><td>FFN in every block</td><td>128 → 512 → 128</td><td>each particle</td><td>process the information gathered by attention</td></tr>
+        <tr><td>MoE experts</td><td>8 × (128 → 512 → 128)</td><td>each particle, top-2 experts</td><td>specialised FFNs</td></tr>
+        <tr><td>Classifier head</td><td>128 → 128 → 10</td><td>the CLS jet vector</td><td>output class scores</td></tr>
+      </table>
+      <p><b>MLP compared with attention:</b> an MLP looks at one particle (or one pair) at a time and never mixes information between particles. Attention is the only step that mixes. A transformer block alternates the two: attention to <i>communicate</i>, then the MLP to <i>compute</i>.</p>
+      <p class="asked">asked 27 Oct 2026 · see <a href="#c3">Chapter 3</a></p>
+    </div>
+  </details>
+
+  <!-- DOUBTS:APPEND (new doubts go above this line, numbered Q9, Q10, ...) -->
   </div>
   <p class="small" id="dEmpty" hidden>No doubts match that search.</p>
 </section>
@@ -1098,6 +1135,24 @@
       el("rect", { x: x0, y, width: X(v) - x0, height: 24, rx: 4, fill: css(c), opacity: 0.85 }, g);
       el("text", { x: X(v) + 6, y: y + 17, "font-size": 12, class: "mono" }, g).textContent = v.toFixed(3);
     });
+  }
+
+  /* Q8: MLP diagram */
+  {
+    const g = $("#mlpg"), L = [[4, 120, ["pT", "E", "q", "ΔR"]], [6, 320, []], [3, 520, ["y1", "y2", "y3"]]];
+    const pos = L.map(([n, x]) => Array.from({ length: n }, (_, i) => [x, 110 + (i - (n - 1) / 2) * 32]));
+    const R = rng(5);
+    for (let l = 0; l < 2; l++) for (const a of pos[l]) for (const b of pos[l + 1]) {
+      const w = gauss(R);
+      el("line", { x1: a[0], y1: a[1], x2: b[0], y2: b[1], stroke: css(w > 0 ? "--blue" : "--orange"), "stroke-width": (0.4 + Math.abs(w) * 1.2).toFixed(2), opacity: 0.55 }, g);
+    }
+    pos.forEach((ps, l) => ps.forEach(([x, y], i) => {
+      el("circle", { cx: x, cy: y, r: 11, fill: css("--panel2"), stroke: css(l === 1 ? "--violet" : "--line"), "stroke-width": 1.5 }, g);
+      const lab = L[l][2][i];
+      if (lab) el("text", { x: l === 0 ? x - 18 : x + 18, y: y + 4, "text-anchor": l === 0 ? "end" : "start", "font-size": 12, fill: css("--sub") }, g).textContent = lab;
+    }));
+    [["input x", 120], ["hidden: GELU(W₁x+b₁)", 320], ["output W₂h+b₂", 520]].forEach(([t, x]) =>
+      el("text", { x, y: 214, "text-anchor": "middle", "font-size": 12.5, fill: css("--muted") }, g).textContent = t);
   }
 
   /* TOC highlight */
