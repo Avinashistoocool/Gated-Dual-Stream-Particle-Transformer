@@ -283,3 +283,7 @@ If GDS-ParT helps your research, cite it with GitHub's **Cite this repository** 
 ## Disclaimer
 
 This project is intentionally inspired by ParT while exploring a different architectural mechanism. It should be treated as an original research prototype built for understanding, experimentation, and presentation rather than as an official reproduction of the published model.[1][2]
+
+## License
+
+MIT. See [`LICENSE`](LICENSE). The JetClass dataset and the ParT reference code it is compared against keep their own licenses.
