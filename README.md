@@ -27,6 +27,8 @@ To set up a new machine (lab workstation, HPC, Colab) and find out where the Jet
 
 **Visual explainer:** [`docs/gds_vs_part.html`](docs/gds_vs_part.html) is an interactive page that builds both architectures from tensors upward. It covers the full math of ParT's additive bias and of GDS gating, and includes a live toy model that compares the attention maps.
 
+**Technical report:** [`docs/GDS-ParT_Technical_Report.pdf`](docs/GDS-ParT_Technical_Report.pdf) (source: [`docs/GDS-ParT_Technical_Report.tex`](docs/GDS-ParT_Technical_Report.tex)) covers the architecture, every equation as the code computes it, training, metrics, results, ablations and limitations. It explains the two streams, derives gate gradients, distinguishes shared and per-layer gates, and separates measured gate reliance from unproven accuracy gains. Appendices build the mathematics from basic algebra upward and cover the MoE extension, with worked examples and exercises. See [Documentation](#documentation).
+
 **Follow-up project:** [GDS-ParT-MoE](https://github.com/Avinashistoocool/GDS-parT-MoE) replaces the particle FFNs with a per-particle Mixture-of-Experts and measures what physics each expert learns.
 
 ## Why this is different
@@ -259,6 +261,19 @@ That statement captures the central architectural novelty relative to the origin
 - Compare gated fusion against a small ParT-like baseline.
 - Test whether gate asymmetry for queries vs. keys improves performance.
 - Per-particle expert interpretability is being developed in [GDS-ParT-MoE](https://github.com/Avinashistoocool/GDS-parT-MoE).
+
+## Documentation
+
+Browse everything at **[avinashistoocool.github.io/Gated-Dual-Stream-Particle-Transformer](https://avinashistoocool.github.io/Gated-Dual-Stream-Particle-Transformer/)**.
+
+- [**Technical report (PDF)**](docs/GDS-ParT_Technical_Report.pdf): motivation, architecture diagram, the input features, embeddings, ParT-style bias and GDS gating, gate gradients, the full forward pass, the training recipe, evaluation metrics, results, ablations, limitations and outlook. The LaTeX source is [`docs/GDS-ParT_Technical_Report.tex`](docs/GDS-ParT_Technical_Report.tex). Compile it with pdfLaTeX, running it twice.
+- [**GDS vs ParT, interactive**](https://avinashistoocool.github.io/Gated-Dual-Stream-Particle-Transformer/gds_vs_part.html): the visual explainer and question list from [`docs/gds_vs_part.html`](docs/gds_vs_part.html).
+- [**Setup and training guide**](GUIDE.md): environment, data, validation, training, ablations and troubleshooting.
+
+## Citing
+
+If GDS-ParT helps your research, cite it with GitHub's **Cite this repository** button
+(from [`CITATION.cff`](CITATION.cff)). Please also cite the ParT paper and the JetClass dataset [1].
 
 ## Reference sources
 

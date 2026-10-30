@@ -1,0 +1,48 @@
+site_name: GDS-ParT
+site_description: Gated Dual-Stream Particle Transformer for jet tagging on JetClass
+site_url: https://avinashistoocool.github.io/Gated-Dual-Stream-Particle-Transformer/
+repo_url: https://github.com/Avinashistoocool/Gated-Dual-Stream-Particle-Transformer
+repo_name: Avinashistoocool/Gated-Dual-Stream-Particle-Transformer
+edit_uri: edit/main/docs/
+docs_dir: docs
+strict: true
+exclude_docs: |
+  *.tex
+  build/
+
+theme:
+  name: material
+  palette:
+    - scheme: slate
+      primary: indigo
+      accent: deep orange
+      toggle: {icon: material/brightness-4, name: Light mode}
+    - scheme: default
+      primary: indigo
+      accent: deep orange
+      toggle: {icon: material/brightness-7, name: Dark mode}
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - search.highlight
+
+nav:
+  - Home: index.md
+  - Setup and training guide: guide.md
+  - GDS vs ParT (interactive): gds_vs_part.html
+  - Technical report (PDF): GDS-ParT_Technical_Report.pdf
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - tables
+  - toc: {permalink: true}
+  - pymdownx.superfences
+  - pymdownx.highlight
+  - pymdownx.arithmatex: {generic: true}
+  - pymdownx.snippets: {base_path: ["."], check_paths: true}
+
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js

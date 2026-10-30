@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -577,8 +577,8 @@
   </table>
   <div class="note"><b>Reading this fairly.</b> At the same 10M training size, GDS-ParT v2 is within 0.002 accuracy of ParT. It has 3% fewer parameters and was trained with roughly 5× fewer jet-iterations: 10 epochs × 10M jets = 100M, compared with 1M steps × 512 ≈ 512M for ParT. The high rejection values depend on few surviving QCD jets in a 1M-jet test set and carry about 10–30% statistical uncertainty. A 20-epoch run is in progress, with best validation accuracy 0.8473 at epoch 8.</div>
   <div class="grid2">
-    <figure><img class="fig" src="../results/v2_shared_10M_10ep/training_curves.png" alt="Training curves"><figcaption>Training and validation curves.</figcaption></figure>
-    <figure><img class="fig" src="../results/v2_shared_10M_10ep/confusion_matrix.png" alt="Confusion matrix"><figcaption>Confusion matrix. Z→qq̄ against W→qq′ and QCD are the hardest classes to separate.</figcaption></figure>
+    <figure><img class="fig" src="https://raw.githubusercontent.com/Avinashistoocool/Gated-Dual-Stream-Particle-Transformer/main/results/v2_shared_10M_10ep/training_curves.png" alt="Training curves"><figcaption>Training and validation curves.</figcaption></figure>
+    <figure><img class="fig" src="https://raw.githubusercontent.com/Avinashistoocool/Gated-Dual-Stream-Particle-Transformer/main/results/v2_shared_10M_10ep/confusion_matrix.png" alt="Confusion matrix"><figcaption>Confusion matrix. Z→qq̄ against W→qq′ and QCD are the hardest classes to separate.</figcaption></figure>
   </div>
 </section>
 
@@ -1161,7 +1161,18 @@ class GDSParTBlock(nn.Module):
     </div>
   </details>
 
-  <!-- DOUBTS:APPEND (new doubts go above this line, numbered Q14, Q15, ...) -->
+  <details class="doubt" data-tags="architecture">
+    <summary><span class="qn">Q14</span><span class="qt">Can I study all the mathematics from basic algebra to GDS-ParT in one document?</span><span class="meta"><span class="tag gds">architecture</span><span class="chev">▶</span></span></summary>
+    <div class="ans">
+      <div class="tldr"><b>Yes:</b> the technical report starts with variables and vector products, then builds up to the exact GDS-ParT forward pass and gate derivatives. Read the <a href="GDS-ParT_Technical_Report.pdf">PDF</a> or edit the <a href="https://github.com/Avinashistoocool/Gated-Dual-Stream-Particle-Transformer/blob/main/docs/GDS-ParT_Technical_Report.tex">self-contained LaTeX source</a>.</div>
+      <p>The learning path covers algebra, linear algebra, tensor shapes, probability, calculus, MLPs, LayerNorm, the 17 particle features, the four pair features, embeddings, attention, the ParT bias, GDS gates, pooling, training and the MoE extension. It includes worked calculations, diagrams, exercises and answers.</p>
+      <p><b>Why dual-stream?</b> One stream contains particle states X, with shape (B,N,D). The other contains pair relations R, with shape (B,N,N,Dp). The relation stream supplies gates and optional pair biases to the particle blocks. It is not named after Q and K. The current implementation reuses R rather than updating it recurrently through a second transformer.</p>
+      <p><b>Corrections to earlier explanations:</b> larger gates do not always increase attention, because Q/K contributions can be negative. Average-gate correlations do not prove core-to-periphery information flow. Gate knockout measures reliance in an already trained network, not an advantage over a model retrained without gates. The textbook explains these limits explicitly.</p>
+      <p class="asked">asked 29 Oct 2026 · see <a href="GDS-ParT_Technical_Report.pdf">the GDS-ParT technical report</a></p>
+    </div>
+  </details>
+
+  <!-- DOUBTS:APPEND (new doubts go above this line, numbered Q15, Q16, ...) -->
   </div>
   <p class="small" id="dEmpty" hidden>No doubts match that search.</p>
 </section>

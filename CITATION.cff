@@ -1,0 +1,47 @@
+cff-version: 1.2.0
+message: "If you use GDS-ParT in research or a report, please cite it as below."
+title: "GDS-ParT: Gated Dual-Stream Particle Transformer for jet tagging"
+type: software
+authors:
+  - given-names: Avinash Chandra
+    family-names: Gupta
+    alias: Avinashistoocool
+version: 1.0.0
+date-released: 2026-10-30
+repository-code: "https://github.com/Avinashistoocool/Gated-Dual-Stream-Particle-Transformer"
+url: "https://avinashistoocool.github.io/Gated-Dual-Stream-Particle-Transformer/"
+abstract: >-
+  GDS-ParT is a PyTorch transformer for jet tagging on the JetClass benchmark. Instead of only adding
+  pairwise kinematics to the attention logits as in the Particle Transformer (ParT), it keeps a particle
+  stream and a pairwise relation stream, aggregates each particle's relations into a summary, and maps
+  the summary to identity-initialised gates (1 + tanh) that rescale the query and key channels before the
+  dot product. The reported v2 configuration combines these gates with a ParT-style pairwise bias and
+  class-attention pooling. With 2.07M parameters and 10 million training jets it reaches 0.8484 test
+  accuracy and 0.9853 macro AUC on a balanced one-million-jet JetClass test subset. The repository
+  includes a memory-efficient data pipeline, training and ablation scripts, a pipeline check against the
+  official ParT checkpoint, and a technical report with the full mathematics.
+keywords:
+  - particle physics
+  - high-energy physics
+  - jet tagging
+  - JetClass
+  - transformer
+  - attention
+  - gating
+  - Particle Transformer
+  - machine learning
+  - PyTorch
+references:
+  - type: article
+    title: "Particle Transformer for Jet Tagging"
+    authors:
+      - family-names: Qu
+        given-names: Huilin
+      - family-names: Li
+        given-names: Congqiao
+      - family-names: Qian
+        given-names: Sitian
+    year: 2022
+    conference:
+      name: "International Conference on Machine Learning (ICML)"
+    url: "https://arxiv.org/abs/2202.03772"

@@ -12,3 +12,5 @@ ablations/**/*.npz
 ablations/**/*.jsonl
 ablations_noema/
 ablations/
+docs/build/
+site/
