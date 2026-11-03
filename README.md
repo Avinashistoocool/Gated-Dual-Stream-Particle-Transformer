@@ -27,6 +27,10 @@ To set up a new machine (lab workstation, HPC, Colab) and find out where the Jet
 
 **Visual explainer:** [`docs/gds_vs_part.html`](docs/gds_vs_part.html) is an interactive page that builds both architectures from tensors upward. It covers the full math of ParT's additive bias and of GDS gating, and includes a live toy model that compares the attention maps.
 
+**Superseded slide-video prototype:** [`docs/learning_video/README.md`](docs/learning_video/README.md) preserves the earlier Hinglish production for provenance. It was rejected as the final teaching course and is not the replacement deliverable.
+
+**Manim mathematics and reconstruction course:** [`docs/manim_course/README.md`](docs/manim_course/README.md) documents the approved replacement: programmatic mathematical animation, English neural narration, sentence-bookmark timing, executed code and solved exercises. Chapters 0-1 are preserved; the authorized continuation covers Chapters 2-15 with an independently implemented companion, executed notebook, exact parameter audits and behavioural tests. Rendering and upload claims are tracked separately in the [quality checklist](docs/manim_course/QUALITY_CHECKLIST.md); source availability alone is not delivery.
+
 **Technical report:** [`docs/GDS-ParT_Technical_Report.pdf`](docs/GDS-ParT_Technical_Report.pdf) (source: [`docs/GDS-ParT_Technical_Report.tex`](docs/GDS-ParT_Technical_Report.tex)) covers the architecture, every equation as the code computes it, training, metrics, results, ablations and limitations. It explains the two streams, derives gate gradients, distinguishes shared and per-layer gates, and separates measured gate reliance from unproven accuracy gains. Appendices build the mathematics from basic algebra upward and cover the MoE extension, with worked examples and exercises. See [Documentation](#documentation).
 
 **Follow-up project:** [GDS-ParT-MoE](https://github.com/Avinashistoocool/GDS-parT-MoE) replaces the particle FFNs with a per-particle Mixture-of-Experts and measures what physics each expert learns.

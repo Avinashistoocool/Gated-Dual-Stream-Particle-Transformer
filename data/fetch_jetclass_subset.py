@@ -13,6 +13,7 @@ import argparse
 import os
 import re
 import sys
+import time
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
@@ -68,7 +69,8 @@ def download_member(url, offset, size, dest):
                     have += len(buf)
         except Exception as e:  # resume on transient network errors
             print(f"[retry] {os.path.basename(dest)} at {have}/{size}: {e}", flush=True)
-        have = os.path.getsize(tmp)
+            time.sleep(5)
+        have = os.path.getsize(tmp) if os.path.exists(tmp) else 0
     os.replace(tmp, dest)
     print(f"[done] {dest} ({size / 1e6:.0f} MB)", flush=True)
     return dest

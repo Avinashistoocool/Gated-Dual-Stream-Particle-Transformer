@@ -1,0 +1,5 @@
+.venv/
+voices/
+build/
+output/
+__pycache__/

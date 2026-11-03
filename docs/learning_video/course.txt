@@ -1,0 +1,832 @@
+@chapter Start here: what are we rebuilding?
+@scene A road map, not a bag of formulas
+@point Start with school algebra, vectors and probability.
+@point Build attention before adding particle physics.
+@point Reconstruct the model, then test what it actually does.
+@visual jets
+@say नमस्ते! इस course में हम school mathematics से शुरू करेंगे और एक particle transformer बनाना सीखेंगे। You do not need to know machine learning already. You do need curiosity, a notebook, and willingness to stop and calculate. Our destination is the Gated Dual Stream Particle Transformer in this repository. We will not pretend that reading one equation makes you understand a network. We will unpack the objects, their shapes, the operations, and the reason each operation exists.
+@say इस video में English technical words और Hindi explanations साथ चलेंगे। The diagrams and code use English so that you can match them to Python documentation. The voice is generated locally by a synthetic Hindi narrator. There are deliberate practice breaks. They are your time to calculate or code, not missing narration. Pause for longer whenever necessary. You can also use the chapter markers to revisit a topic instead of watching everything in one sitting.
+@say By the end, you should be able to trace a jet from its particles to ten output scores, explain the difference between additive pair bias and multiplicative gates, and assemble a working educational reconstruction. Building a model is not the same as reproducing a published experiment. We will separate these goals carefully. पहले समझेंगे, फिर हाथ से निकालेंगे, फिर code लिखेंगे, और फिर check करेंगे।
+@scene What does a jet classifier predict?
+@point One training example is one jet, not one particle.
+@point Many particles in; one of ten jet labels out.
+@point A prediction is uncertain, not a physical proof.
+@visual jets
+@say Imagine a high energy collision. We do not put a photograph of the whole universe into our model. We take a reconstructed jet: a collection of particles whose momenta are clustered together. Different underlying processes can produce different patterns inside these collections. The task is to use those patterns to predict a class. एक jet में कई particles होते हैं, लेकिन इस task में label पूरे jet का होता है। This distinction matters because a network may create a vector for each particle while still receiving only one supervised answer per jet.
+@say The ten labels include a background category and several Higgs, vector boson, and top decay categories. You do not need to memorize their names before learning the mathematics. Think of them as ten mutually exclusive answer slots in this dataset. A model returns ten real numbers called logits. Later we convert them into probabilities whose sum is one. The largest probability gives a predicted class, but a confident prediction can still be wrong.
+@say Here is an important scientific boundary. The training label is supplied by the dataset construction. The model learns statistical relationships between measured inputs and those labels. It does not derive quantum field theory from scratch. A beautiful attention map is not automatically a discovered law of physics. हमारी पहली जिम्मेदारी है सही input, सही target, और ईमानदार evaluation।
+@scene Learning means adjusting numbers from examples
+@point Parameters are learned numbers; features are observations.
+@point Forward pass -> loss -> gradients -> parameter update.
+@point Validation guides choices; the test set stays held out.
+@math prediction = model(input; parameters)
+@say Suppose you predict a student's marks from hours of study using a straight line. The hours are an input feature. The slope and intercept are parameters. Changing the student changes the input; training changes the parameters. A neural network follows the same distinction, except it contains many matrices and nonlinear functions instead of just one slope. Parameter count is not the number of training examples, and a large parameter count does not guarantee better generalization.
+@say During a forward pass, current parameters produce a prediction. A loss function assigns a penalty to that prediction using the known answer. Backpropagation computes how a small change in each parameter would change the loss. An optimizer then updates the parameters. Repeat this over batches of examples. Training is a numerical process, not a sequence of manually written rules such as, if the jet is wide then choose background.
+@say Training data teaches the parameters. Validation data helps select settings and checkpoints. Test data measures the selected system at the end. अगर test set देखकर बार बार model बदलोगे, तो test set भी indirectly training का हिस्सा बन जाएगा। Keep preprocessing and label mappings consistent across all three splits. Otherwise you can build flawless matrix code and still obtain a scientifically invalid result.
+@scene Your learning environment and the course files
+@point Use a tiny CPU model before a full training run.
+@point reconstruction.py mirrors the architecture for study.
+@point The production modules remain the source of truth.
+@code import torch
+@code from reconstruction import build_model
+@code model = build_model(tiny=True)
+@code print(sum(p.numel()
+@code           for p in model.parameters()))
+@say You can follow the early chapters with paper alone. For the coding chapters, use Python and PyTorch in the same project environment that already runs this repository. The course includes a reconstruction file. It assembles the forward computation explicitly while reusing the repository's tested component classes. This avoids silently teaching a second incompatible architecture. You should still implement small operations yourself during practice, and compare them with the library versions.
+@say Start small. A batch of two jets, a few particles, a hidden width of sixteen, and two attention heads are enough to expose most shape errors. The full model uses larger dimensions and many more layers, but the algebra is the same. A laptop CPU is sufficient for these reconstruction checks. Training on millions of real jets is a separate resource-intensive task. इस course को समझने के लिए पूरा dataset download करना जरूरी नहीं है।
+@say Keep a shape notebook. For every tensor, write its name, its axes, its datatype, and what those axes mean. If your code produces a plausible-looking number but you cannot explain the axes that were summed, you are not finished. We will use this habit repeatedly, especially for the two particle axes of pair relations.
+@scene First checkpoint: input, parameter or target?
+@point Classify: particle energy, linear weight, jet label.
+@point Explain why one jet can contain many token vectors.
+@point Write one sentence defining training and inference.
+@practice 75
+@say अब पहला छोटा exercise। Decide whether each item is an input, a parameter, or a target: the measured energy of a particle, an entry in a learned weight matrix, and the class label of a jet. Then explain why creating one representation per particle does not require having one label per particle. Finally, write the difference between training and inference without using the word intelligence. You have a short work period now. Pause the video if you need more time.
+@answer Particle energy is an input observation. A weight matrix entry is a learned parameter. The jet class is a supervised target. Particle representations are intermediate computations that are combined before producing the jet prediction. Training updates parameters using losses and gradients. Inference uses the current parameters to compute predictions without an optimizer update. अगर यह साफ है, तो आगे की equations के लिए foundation तैयार है। When uncertain later, return to these three categories instead of treating every number as something the model learns.
+
+@chapter Algebra and functions: the language of layers
+@scene Variables, functions and composition
+@point A variable names a value; a function transforms values.
+@point Composition means using one output as the next input.
+@point Order matters: f(g(x)) need not equal g(f(x)).
+@math f(x) = 2*x + 1; g(x) = x*x
+@say A variable is a name for a quantity. A function is a rule that takes an input and returns an output. If a function doubles a number and adds one, an input of three gives seven. If another function squares its input, three gives nine. Now compose them. Doubling the square and adding one gives nineteen. Squaring the doubled-plus-one result gives forty nine. Same two functions, different order, different answer.
+@say Neural networks are compositions. A linear layer is followed by an activation, then another linear layer, and perhaps normalization. You cannot rearrange these freely. In our particle embedding, LayerNorm happens before the first linear projection. Moving it after the activation creates a different computation even if all the dimensions still fit. सही shapes होना जरूरी है, लेकिन सिर्फ shapes सही होने से mathematics सही नहीं हो जाती।
+@say We often write a function as if it were one symbol to hide details temporarily. Calling something an embedding does not make it mysterious. It is still a specific sequence of operations with learned numbers. Whenever a box feels magical, expand it into its smaller functions and test those functions on a small example.
+@scene Sums, indices and the meaning of a subscript
+@point i selects a receiving particle; j selects a neighbour.
+@point c selects a feature channel; b selects a jet.
+@point A repeated sum index is local to that sum.
+@math s_i = sum_j r_ij / N
+@say A subscript is an address. If a vector contains three measurements, the first subscript can select which measurement we mean. For particle data, we need more addresses: which jet, which particle, and which feature. The symbol for a tensor is not enough; you must understand its indexing convention. In pair relations there are two particle addresses, because a relationship belongs to a pair rather than to just one particle.
+@say Consider the average relation for particle i. Hold i fixed, move j over the possible neighbours, add the relation vectors, and divide by the number of valid neighbours. The summation removes the j axis. It does not remove i, because we need one summary for each receiving particle. If the relation tensor has shape batch by particles by particles by channels, summing over the neighbour axis leaves batch by particles by channels.
+@say इसे table की तरह सोचो। One row belongs to one receiving particle. You average across that row, not across the whole table. A surprisingly common bug is to sum over the wrong particle axis. The result can have the expected shape when both axes have the same length, so only a numerical example or a semantic check reveals the mistake.
+@scene Powers, square roots, exponentials and logarithms
+@point exp and log undo each other on positive values.
+@point log compresses large positive dynamic ranges.
+@point log(0) is undefined; numerical floors need explanation.
+@math log(a*b) = log(a) + log(b), for a,b > 0
+@say Exponentiation repeatedly multiplies, while a logarithm asks which exponent produced a positive value. In machine learning, exp usually means the natural exponential and log usually means the natural logarithm. They are inverse functions on their appropriate domains. Logs turn multiplication into addition. They also compress ranges: a quantity growing from one to a thousand changes dramatically, while its logarithm changes much more gently.
+@say Particle momenta and angular separations can span wide ranges. The pair features in this repository use logarithms partly to make such ranges more manageable. But a log requires a positive argument. Zero separation or a slightly negative mass squared from rounding cannot simply be passed through log. The code uses small positive floors. That is a numerical convention you must reproduce, not a new physics law.
+@say Normalization introduces another distinction. Taking a logarithm, subtracting a fixed shift, multiplying by a fixed scale, and clipping are separate operations. Their order matters. किसी feature का नाम log momentum होने का मतलब यह नहीं कि stored value सिर्फ logarithm है। It may already include shifting and scaling. Always inspect the preprocessing code before interpreting the numeric value physically.
+@scene Probability and softmax without mysticism
+@point Probabilities are nonnegative and sum to one.
+@point Logits are unrestricted scores, not probabilities.
+@point Subtract the maximum before exponentiating.
+@math softmax(z)_j = exp(z_j - max(z)) / sum_k exp(z_k - max(z))
+@visual attention
+@say If two classes have logits zero and zero, their probabilities are one half and one half. If the logits are zero and the natural log of three, the exponential weights are one and three, so the probabilities are one quarter and three quarters. Softmax converts relative scores into normalized positive weights. Adding the same constant to every logit changes neither probability, because the common exponential factor cancels.
+@say This cancellation gives a useful numerical trick. Subtract the largest logit before exponentiation. The largest exponent then becomes zero, preventing unnecessarily huge intermediate values. The relative probabilities stay the same. This is not changing the model's decision; it is computing the same expression more safely. Mature library functions implement this stability internally.
+@say Later, attention uses softmax over candidate keys for each query. The classifier uses softmax over classes for each jet. Same mathematical function, different axis and meaning. हमेशा पूछो: probability किस चीज की है, और किस axis पर sum one होना चाहिए? A probability distribution over neighbours is not the same object as a probability distribution over jet labels.
+@scene Algebra practice: calculate before coding
+@point Compute softmax([0, log(3)]).
+@point Add 10 to both logits; explain what changes.
+@point For a 3 x 3 relation table, average each row.
+@math R = [[1,2,3], [4,5,6], [7,8,9]]
+@practice 90
+@say Work through three calculations. First compute the two softmax probabilities shown on the slide. Next add ten to both logits and predict the result without using a calculator. Finally, treat the displayed matrix as scalar relations and find the summary for each receiving particle by averaging over neighbours. Write the resulting shape as well as the numbers. This exercise connects three ideas that will soon appear together inside the gate: indices, aggregation, and normalized weights.
+@answer The probabilities are one quarter and three quarters. Adding ten to both logits changes neither probability because a common factor cancels. Row averages are two, five, and eight, so the result has three entries, one per receiving particle. Column averages would be four, five, and six. They have the same shape but represent the wrong aggregation for our convention. यही वजह है कि shape check के साथ numerical check भी जरूरी है। When implementing a sum, compare it with a tiny hand-computed table.
+
+@chapter Vectors, matrices and tensors
+@scene A vector is an ordered list with meaning
+@point [energy, charge, angle] is not the same as [angle, energy, charge].
+@point Vector addition and scalar scaling act componentwise.
+@point A learned channel need not have a simple physical name.
+@math [1,2,3] + [4,5,6] = [5,7,9]
+@visual tensor
+@say A vector is an ordered collection of numbers. The order is part of the representation. If a network expects energy in the first position and charge in the second, swapping those columns gives a different input even if the same numbers are present. Think of the feature order as a contract between your data pipeline and your model. The same contract must hold when training and when evaluating.
+@say Vector addition combines corresponding components. Multiplication by a scalar scales every component. Neither operation automatically knows about physical units. Adding energy to an angle would make no physical sense in a raw scientific formula. A learned model can combine normalized measurements numerically, but you still need meaningful preprocessing and a clearly specified convention.
+@say After embedding, a particle becomes a vector with many learned channels. These channels are combinations learned for prediction. Channel seven is not guaranteed to mean charge, even if raw feature seven happened to be charge. यही raw feature और latent representation में फर्क है। You may investigate what channels encode, but do not assign physical meanings just because a diagram needs a label.
+@scene Dot product versus elementwise multiplication
+@point Dot product sums products and produces one score.
+@point Elementwise multiplication preserves the vector shape.
+@point Gates use elementwise multiplication before a dot product.
+@math [1,2] dot [3,4] = 11; [1,2] * [3,4] = [3,8]
+@visual gate
+@say Take the vectors one, two and three, four. Their dot product multiplies matching entries and adds: three plus eight gives eleven. Elementwise multiplication stops before the addition and returns three, eight. These are different operations with different output shapes. The circled multiplication symbol often used in neural network diagrams denotes the elementwise operation, also called the Hadamard product.
+@say In attention, a query vector and a key vector eventually produce one dot product score. In GDS attention, a query is first multiplied elementwise by its query gate, and a key by its key gate. The modified vectors still have the same number of channels. Only then do we multiply matching channels and sum to produce a score. A gate is not itself a dot product.
+@say A useful debugging rule follows immediately. If multiplying by your gate removes the channel axis, you probably used a matrix product or a reduction where you needed elementwise multiplication. दूसरी तरफ, अगर attention score में अभी भी channel axis बची है, तो शायद आपने required sum नहीं किया। Shapes reveal the distinction when your notation becomes confusing.
+@scene Matrices describe many linear combinations
+@point A linear layer combines input channels into output channels.
+@point PyTorch stores Linear weights as [out_features, in_features].
+@point Bias shifts each output channel.
+@math y = x @ W.T + b
+@code layer = torch.nn.Linear(3, 2)
+@code x = torch.tensor([[1., 2., 3.]])
+@code y = layer(x)
+@code assert y.shape == (1, 2)
+@say A matrix is a rectangular table of numbers. A linear layer uses each row of its weight matrix as one recipe for combining input channels. If the input has three channels and the output has two, there are two recipes, each containing three weights. A bias adds one extra number to each output channel. The total parameter count is six weights plus two biases.
+@say Mathematical books often use column vectors and write weight times input. PyTorch commonly represents a collection of examples as rows and stores linear weights with output channels first. Therefore the equivalent row-vector expression is input times transposed weight plus bias. These conventions are compatible once you write the dimensions explicitly. Do not copy a transpose from a formula without checking the convention used by the code.
+@say A Linear layer can process a tensor with several leading axes. It transforms the final channel axis and preserves the earlier axes. For an input shaped batch, particles, seventeen, a projection to one hundred twenty eight gives batch, particles, one hundred twenty eight. The same weight matrix is reused for every particle. This is not a different set of learned weights for each position.
+@scene Tensors are arrays with named axes
+@point F: [B, N, 17] stores particle observations.
+@point U: [B, N, N, 4] stores pair observations.
+@point Rank counts axes here, not matrix rank.
+@math B=2, N=3: F has 102 entries; U has 72 entries
+@visual tensor
+@say In this course, a tensor means a multidimensional numerical array. A scalar has no axes, a vector has one, a matrix has two, and our pair features have four. People sometimes call the number of axes the tensor's rank. Be careful: matrix rank is a different linear algebra concept measuring independent directions. Context determines which meaning is intended.
+@say The batch axis selects a jet. The next axis selects a particle in that jet. The final axis selects one of seventeen features. Pair features need two particle axes: receiving particle and neighbouring particle. With two jets and three padded particle positions per jet, the particle tensor has two times three times seventeen entries. The pair tensor has two times three times three times four.
+@say N is often a padded length, not the number of real particles in every jet. A separate boolean mask tells us which positions are real. Two jets can share the same rectangular tensor while having different physical particle counts. Tensor shape alone cannot tell you which rows are padding. यही कारण है कि mask को optional decoration नहीं मानना चाहिए।
+@scene Broadcasting, reshape and transpose
+@point Broadcasting repeats compatible singleton axes conceptually.
+@point Reshape groups entries; transpose exchanges axes.
+@point Never reshape to imitate an axis permutation.
+@code mask = torch.tensor([[1, 1, 0]],
+@code                     dtype=torch.bool)
+@code key_keep = mask[:, None, None, :]
+@code assert key_keep.shape == (1,1,1,3)
+@say Broadcasting allows operations between arrays whose trailing dimensions are compatible: each pair of dimensions must be equal, or one must be one. A singleton dimension can be reused conceptually across many positions without manually building repeated copies. For masking attention, we turn a batch by particles mask into batch by one by one by particles. It then applies the same valid-key rule to every head and every query.
+@say Reshape and transpose solve different problems. Reshape changes how a sequence of entries is grouped. Transpose changes which axis is interpreted as which. Multihead attention first splits the channel axis into heads and channels per head, then transposes to place the head axis before the particle axis. Omitting that transpose can create mathematically incorrect products even if a later reshape makes the output dimensions look acceptable.
+@say Make a numbered toy tensor and print it after each operation. Follow one particular value through the transformations. अगर एक particle की channels अचानक दूसरे particle के साथ mix हो गईं, तो shape conversion गलत है। Understanding this once is more valuable than memorizing a long chain of view and transpose calls.
+@scene Tensor lab: follow one number
+@point Create arange(24).reshape(2,3,4).
+@point Split 4 channels into 2 heads of width 2.
+@point Recover the original tensor after transposing back.
+@code x = torch.arange(24).reshape(2,3,4)
+@code h = x.reshape(2,3,2,2)
+@code h = h.transpose(1,2)
+@code back = h.transpose(1,2)
+@code back = back.contiguous().view(2,3,4)
+@code assert torch.equal(x, back)
+@practice 120
+@say This is your first coding lab. Type the displayed operations, but predict the intermediate shapes before running them. Locate the entry with value seven before and after the transpose. Then recover the original tensor. The contiguous call makes the transposed memory layout suitable for view. Reshape can sometimes make the required copy for you, but understanding the layout is still useful. Use the work period to experiment rather than only copying the final assertion.
+@answer The starting shape is two, three, four. Splitting channels gives two, three, two, two. Moving the head axis gives two, two, three, two. Transposing back restores the original axis order, and flattening the two channel-related axes recovers two, three, four. Equality confirms both shape and values. यह छोटा test आगे attention heads को merge करते समय काम आएगा। If you transpose only on the forward path and forget the reverse transformation, the network can mix up particles and heads.
+
+@chapter Neural networks, gradients and optimization
+@scene Why a single straight line is not enough
+@point Linear layers alone collapse into one affine map.
+@point Nonlinear activations let features interact nonlinearly.
+@point An MLP applies shared channel transformations per token.
+@math MLP(x) = W2 * GELU(W1*x + b1) + b2
+@say A multilayer perceptron, or MLP, is a sequence of learned linear transformations with nonlinear activations between them. Why do we need the nonlinearity? If you compose two affine transformations with no nonlinear operation in between, you can multiply their matrices and combine their biases into a single affine transformation. Stacking them would not create the intended extra expressive structure.
+@say An activation changes that. ReLU keeps positive inputs and replaces negative ones with zero. This repository uses GELU, a smooth activation that scales an input according to a Gaussian cumulative distribution function. You do not need to derive the Gaussian integral to use the layer correctly. Understand that it acts independently on each scalar and bends the overall input-output relationship.
+@say Inside the transformer, the feed-forward network expands each particle's channel vector, applies an activation, and projects back. It does not directly mix particle positions. Attention performs communication between particles; the MLP transforms the information stored within each particle representation. दोनों useful हैं, लेकिन दोनों का काम अलग है। Calling every operation attention would hide this important division of labour.
+@scene Derivatives measure local sensitivity
+@point A derivative is a local rate of change.
+@point A partial derivative changes one variable at a time.
+@point A gradient collects sensitivities to many parameters.
+@math f(w)=w*w; df/dw=2*w
+@say You may know derivatives from school calculus. The derivative tells us how much a function changes for a small input change near a particular point. For the square function, the derivative at three is six. A tiny increase in the input therefore increases the output by roughly six times that tiny amount. This is a local approximation, not an exact statement for a large jump.
+@say A neural network loss depends on many parameters. A partial derivative asks what happens when one parameter changes while the others are held fixed. The gradient collects these partial derivatives into an object with the same shape as the parameter tensor. If a weight matrix has two by three entries, its gradient also has two by three entries.
+@say Gradient descent subtracts a small multiple of the gradient. We subtract because the gradient points toward local increase of the loss. The learning rate controls the step size. बहुत बड़ा step loss बढ़ा सकता है, even though the direction was locally sensible. A gradient is information about nearby behaviour, not a promise that an arbitrary update will improve the model.
+@scene The chain rule is the engine of backpropagation
+@point Track local derivatives through composed functions.
+@point Sum contributions when a value feeds multiple paths.
+@point Autograd records operations; it does not understand physics.
+@math x -> a=2*x -> b=a*a; db/dx = 2*a * 2
+@say Suppose an intermediate value doubles the input, and the final output squares that intermediate value. To find the final sensitivity to the original input, multiply the sensitivity of the square to the intermediate by the sensitivity of the intermediate to the input. This is the chain rule. If one intermediate contributes through multiple paths, those contributions add.
+@say Backpropagation applies this rule efficiently across the computational graph. PyTorch records the operations involving tensors that require gradients. Calling backward on a scalar loss propagates derivatives into parameter gradient buffers. The framework does not need to know that a feature represents momentum. It only needs differentiable numerical operations and the relevant local derivative rules.
+@say There are deliberate exceptions. Labels are discrete targets. An argmax prediction is not a useful differentiable path for training. Therefore we train from logits using a smooth loss rather than taking the winning class first and trying to differentiate that integer. अगर आपने loss से पहले argmax कर दिया, तो सीखने का रास्ता टूट सकता है। Keep hard decisions for reporting predictions, not for the basic training loss.
+@scene Cross-entropy turns probabilities into a penalty
+@point The loss penalizes low probability on the true class.
+@point Feed raw logits to torch cross_entropy.
+@point For one example, the logit gradient is p - one_hot(y).
+@math loss = -log(p_true)
+@code logits = model(features, pairs, mask)
+@code loss = torch.nn.functional.cross_entropy(
+@code     logits, labels)
+@code loss.backward()
+@say If the correct class receives probability one half, the negative natural logarithm is about zero point six nine. If it receives probability one tenth, the penalty is about two point three zero. If it receives a probability near one, the penalty approaches zero. Cross-entropy therefore rewards assigning high probability to the correct label, not merely winning by a tiny margin over the wrong labels.
+@say PyTorch's cross entropy function expects raw logits for the usual classification use case. It combines a stable log-softmax with the target selection internally. Do not apply softmax first and then pass those probabilities as if they were logits. The label tensor contains integer class indices, and its batch dimension must align with the batch of predictions.
+@say The derivative with respect to a logit has a beautiful form: predicted probability minus the one-hot target. For the true class, the gradient is negative unless its probability is already one. For other classes it is positive. Gradient descent therefore tends to raise the true-class logit and lower the others, with all earlier layers learning through the chain rule.
+@scene A training step and what zero_grad means
+@point Zero old gradients, predict, compute loss, backpropagate, step.
+@point Gradients accumulate unless explicitly cleared.
+@point train() and eval() change dropout behaviour.
+@code optimizer.zero_grad(set_to_none=True)
+@code logits = model(f, u, mask)
+@code loss = F.cross_entropy(logits, labels)
+@code loss.backward()
+@code optimizer.step()
+@say A standard training step starts by clearing gradient buffers. Next run the model, compute the loss, call backward, and ask the optimizer to update parameters. PyTorch accumulates gradients by default. This is useful for intentional gradient accumulation, but it becomes a bug if you accidentally mix gradients from unrelated optimizer steps. Clearing gradients is not resetting learned weights.
+@say AdamW adapts updates using running statistics of gradients and includes decoupled weight decay. You can learn its full derivation later; initially, understand which quantities persist between steps. Optimizer state matters for resuming training. Saving only model weights lets you perform inference, but it does not reproduce the same training continuation as restoring optimizer and scheduler state.
+@say Put the model in training mode while training, and evaluation mode for validation. Dropout randomly drops activations during training but is disabled in evaluation. Evaluation mode does not by itself disable gradient recording, so validation commonly also uses no grad or inference mode. ये दो अलग controls हैं: layer behaviour और gradient bookkeeping। Confusing them can waste memory or make your validation randomly fluctuate.
+@scene Gradient lab: check a derivative yourself
+@point At w=3, verify the gradient of w squared.
+@point Compare autograd with a small finite difference.
+@point Explain why two backward calls can accumulate gradients.
+@code w = torch.tensor(3., requires_grad=True)
+@code loss = w*w
+@code loss.backward()
+@code print(w.grad)  # tensor(6.)
+@practice 105
+@say Take a scalar parameter equal to three and square it. Predict the gradient, then verify with autograd. Separately estimate the derivative by evaluating the square at three plus a small epsilon and three minus that epsilon, subtracting the results, and dividing by twice epsilon. Do not choose an absurdly tiny epsilon in low precision, because subtraction can lose significant digits. Finally explain what would happen if gradients were added twice without clearing the buffer.
+@answer The analytic and autograd gradients are six. A reasonable central finite difference should be close to six. Repeated backward contributions add to the gradient buffer, so two equivalent contributions would total twelve if the graph handling allows both calls. To make a fresh calculation, rebuild the forward expression or retain the graph deliberately. The lesson is not to memorize a particular exception message. It is to distinguish the computational graph from the gradient buffer and the parameter itself.
+
+@chapter LayerNorm, embeddings and residual learning
+@scene LayerNorm normalizes one token across channels
+@point Compute mean and variance over the final channel axis.
+@point Normalize, then apply learned gamma and beta per channel.
+@point Gamma multiplication is elementwise, not a dot product.
+@math LN(x)_c = gamma_c * (x_c - mean) / sqrt(var + eps) + beta_c
+@say Layer normalization starts with one token vector. Compute the mean of its channels, subtract that mean from each channel, and divide by the square root of the channel variance plus a small epsilon. Then apply a learned scale gamma and a learned shift beta to each channel. Gamma does not form a dot product with the vector. The output still has the same number of channels.
+@say The variance here divides by the number of channels, not by one fewer as in an unbiased sample variance estimate. PyTorch LayerNorm uses this population-style variance for normalization. Epsilon prevents division by zero and affects the exact output variance. Before the learned affine transformation, the variance is the original variance divided by original variance plus epsilon. It is approximately one when the variance is much larger than epsilon, not exactly one in every case.
+@say Gamma and beta then remove any guarantee that the final output has zero mean and unit variance. यह normalization और learned affine step को अलग देखने से समझ आता है। LayerNorm is also not a normalization over the whole batch. Different particles and different jets are normalized independently across their own feature channels.
+@scene Work a LayerNorm example by hand
+@point For [1,3], mean=2 and population variance=1.
+@point Ignoring epsilon, normalized values are [-1,1].
+@point Gamma=[2,3], beta=[0.5,-0.5] gives [-1.5,2.5].
+@math (([1,3] - 2) / sqrt(1)) * [2,3] + [0.5,-0.5]
+@say Let's calculate rather than only naming the layer. The vector one, three has mean two. Its centered values are minus one and one. Their squared values are both one, so the population variance is one. Ignoring epsilon only for this hand calculation, the normalized vector stays minus one, one. Now use gamma two, three and beta one half, minus one half. Elementwise scaling gives minus two, three, and shifting gives minus one point five, two point five.
+@say Notice the final values do not have zero mean. That is not a failure; the learned affine step is part of the design. In an actual numerical check, include epsilon and compare with a tolerance instead of expecting exact agreement with a rounded hand calculation. Also choose the same datatype for both implementations.
+@say What if all input channels are equal? The centered vector is zero, so the normalized vector is zero even though the denominator is nonzero due to epsilon. The output becomes beta. यह edge case अच्छा test है। It checks that your code avoids division by zero and applies the learned shift on the correct axis.
+@scene Embedding means learning a useful representation
+@point Particle embedding: LN(17) -> Linear -> GELU -> Linear.
+@point Pair embedding: Linear(4,64) -> GELU -> Linear(64,64).
+@point A projection changes channels, not particle count.
+@math F:[B,N,17] -> X:[B,N,128]; U:[B,N,N,4] -> R:[B,N,N,64]
+@visual tensor
+@say Embedding is a general name for representing an object by a vector. Here the object is either a particle or a pair of particles. The particle embedding first normalizes the seventeen input channels, projects to the hidden width, applies GELU, projects again, and applies dropout. With the standard configuration, each particle ends up with one hundred twenty eight channels.
+@say The pair embedding is a separate small network. It takes four interaction features and produces sixty four relation channels using linear, GELU, linear. It does not have the same LayerNorm and dropout sequence as the particle embedding. This distinction matters when reconstructing the actual repository rather than drawing a generic transformer.
+@say Both networks share their parameters across positions. Every particle uses the same particle embedding function, and every pair uses the same pair embedding function. They can still produce different outputs because their inputs differ. Learning shared rules is useful for variable-sized collections and permutation symmetry. कोई particular particle index अपनी अलग learned identity नहीं रखता। A different row order should not change the jet's classification when all related tensors are permuted consistently.
+@scene Residual connections preserve a path through depth
+@point A residual block adds an update to its input.
+@point Input and update must have matching shapes.
+@point Pre-LN normalizes the update branch before attention.
+@math x_next = x + attention(LN(x))
+@say A residual connection adds a computed update to the existing representation. Instead of asking a subnetwork to construct a completely new vector, we ask it to propose a change. The original representation has a direct path to later layers. In differentiation, the derivative of the identity path contributes an identity term, which can help optimization across deep stacks.
+@say This does not mean gradients can never vanish or explode. It means the architecture contains a useful route that does not require every derivative to pass through every nonlinear transformation. Claims about guaranteed perfect training would be too strong. Residual connections are an engineering tool, not a proof that any depth and learning rate will work.
+@say Our particle blocks use pre-normalization. Normalize the current particle state before computing attention, add the attention output to the original state, then normalize again before the feed-forward update and add that update. Note that the second normalization sees the state after the attention residual. If you normalize the original input twice instead, you have changed the block.
+@scene Normalization and residual practice
+@point Calculate LN([2,2,2]) with gamma=1 and beta=0.
+@point Count parameters in Linear(17,128).
+@point Explain why a residual update must return width 128.
+@practice 90
+@say Try three checks. First calculate the output of LayerNorm for three identical entries when gamma is one and beta is zero. Include epsilon conceptually. Second count the weights and biases of a linear layer from seventeen channels to one hundred twenty eight. Third explain why the feed-forward network expands to five hundred twelve channels internally but must project back to one hundred twenty eight before the residual addition. These are small questions that catch large implementation errors.
+@answer Identical channels center to zero, so the normalized output is zero. The linear layer has seventeen times one hundred twenty eight weights and one hundred twenty eight biases, for two thousand three hundred four parameters. The residual branch must return the original width because addition matches corresponding channels. The intermediate expansion is free to be wider because it is internal to the branch. Shapes are therefore architectural constraints, not just syntax demanded by PyTorch.
+
+@chapter The real inputs: seventeen particle features
+@scene Four-vectors and coordinates
+@point Stored four-vector order is (px, py, pz, E).
+@point Transverse momentum is sqrt(px squared + py squared).
+@point Particle features and four-vectors are separate inputs to preprocessing.
+@math pt = sqrt(px^2 + py^2); phi = atan2(py, px)
+@visual jets
+@say A four-vector stores three momentum components and an energy. This repository uses the order momentum x, momentum y, momentum z, then energy. Other software sometimes puts energy first, so do not assume the order from the phrase four-vector. Mixing these conventions can produce finite numbers that are completely wrong physically.
+@say Transverse momentum is the magnitude in the plane perpendicular to the beam direction. It comes from the x and y momentum components. The azimuthal angle comes from the two-argument arctangent, which preserves the quadrant. The longitudinal component and energy enter rapidity and invariant mass calculations later. We use units where the speed of light is treated as one in these formulas.
+@say The model's particle tensor has seventeen processed features, but pair features are computed from the stored four-vectors. They are not created by feeding the seventeen-feature vector directly into a four-input layer. यह दो अलग data paths हैं। Some information overlaps physically, but the representations and preprocessing functions are distinct. Keep both tensors aligned to the same particle ordering.
+@scene Momentum, energy and relative features: columns zero to six
+@point 0-3: log pt, log E, log relative pt, log relative E.
+@point 4-6: distance to jet axis, delta eta, delta phi.
+@point Fixed shifts, scales and clipping are part of the feature definition.
+@math stored_log_pt = (log(pt) - 1.7) * 0.7
+@say The first feature group describes kinematics. There is a log transverse momentum, a log energy, a log ratio of particle transverse momentum to jet transverse momentum, and a log ratio of particle energy to jet energy. Relative quantities help describe how much of the jet is carried by a particle. Absolute and relative features are not interchangeable.
+@say Next come a distance from the jet axis and two angular offsets. The particle-level distance uses the provided delta eta and delta phi quantities. Do not silently substitute the pairwise rapidity-distance formula here; the repository uses different coordinate definitions in these two places. Reproducing a preprocessing pipeline requires respecting such distinctions even if they look similar on a diagram.
+@say The stored values include fixed normalization conventions. For log transverse momentum, the code subtracts one point seven and multiplies by zero point seven. Other features have their own shifts and scales. Values are clipped to a bounded range, and nonfinite values are handled explicitly by the preprocessing implementation. इसलिए raw physical number और model को मिलने वाला number अलग हो सकते हैं। Always document which one you are plotting.
+@scene Charge and identity flags: columns seven to twelve
+@point 7: electric charge.
+@point 8-12: charged hadron, neutral hadron, photon, electron, muon.
+@point Identity flags are observations, not the jet class label.
+@visual tensor
+@say Column seven contains electric charge. The next five columns indicate particle categories: charged hadron, neutral hadron, photon, electron, and muon. These are supplied particle-level descriptors. They are not the ten jet classes that the network is asked to predict. Confusing the two kinds of label can lead you to think the answer has been handed directly to the model.
+@say A flag is numerically just a feature entry, often zero or one before any subsequent model transformation. The embedding combines it with the other channels. After LayerNorm and learned projections, the hidden channels are no longer a literal list of flags. The model may exploit interactions between identity, energy, direction, and displacement information.
+@say These particle identity observations do not directly enter the shared relational gate in the current design. That gate sees a summary of relations built from pair kinematics. A correlation between a gate and a particle category can therefore arise indirectly through correlated kinematics. यह distinction interpretation में बहुत जरूरी है। If you claim a gate detects a particular particle identity, show evidence that distinguishes direct input access from indirect correlation.
+@scene Displacement information: columns thirteen to sixteen
+@point 13 and 15: tanh-transformed displacement values.
+@point 14 and 16: uncertainty-related inputs clipped to [0,1].
+@point Displacement can be informative, but missingness needs care.
+@math features = [..., tanh(d0), clip(d0err), tanh(dz), clip(dzerr)]
+@say The last four features carry displacement-related information and associated uncertainty inputs. The code applies a hyperbolic tangent to two displacement values and clips the corresponding error-like inputs to the interval from zero to one. The exact branch names are d zero value, d zero error, d z value, and d z error. Consult the dataset definition for their physical units and conventions before making quantitative physical claims.
+@say Why can displacement matter? Some particles originate from decays away from the primary collision point, so reconstructed track information can help distinguish processes. But the model's statistical usefulness does not mean every nonzero displacement identifies a particular parent particle. Detector effects, reconstruction, selection, and missing values all matter.
+@say Treat preprocessing as part of the saved scientific model. If you train with transformed displacement values and later evaluate with raw values, the neural network is receiving a different distribution. A checkpoint alone does not capture an undocumented preprocessing change. सिर्फ architecture reproduce करना काफी नहीं है; feature order और feature transformations भी reproduce करने होंगे। This is why our course repeatedly returns to the data contract.
+@scene Padding is absence, not a real zero-valued particle
+@point mask=True means a real particle in the model input.
+@point Exclude padded keys and padded pooling contributions.
+@point All-empty jets need rejection before conditioned attention.
+@visual mask
+@say Jets have different particle counts. A rectangular batch pads shorter jets with extra rows. Those rows are not physical particles whose energy happens to be zero. They are absent positions. A boolean mask communicates this distinction. In the top-level model convention, true means a real particle and false means padding.
+@say A linear layer with bias can turn a zero row into a nonzero vector. Therefore zeroing padded raw inputs is not enough. Attention must prevent real queries from reading padded keys. Relation aggregation must ignore padded neighbours. Pooling must avoid treating padding as evidence. Padded query rows may still contain intermediate numbers, which is acceptable only if they cannot contaminate the final real-particle computation.
+@say A completely empty jet is a separate edge case. A softmax over keys that are all masked has no valid distribution and can produce nonfinite values. This course's reconstruction rejects empty examples explicitly. Do not interpret that guard as a claim that the production implementation already validates every malformed input. अच्छे tests valid data के साथ साथ invalid assumptions भी सामने लाते हैं।
+@scene Feature audit lab
+@point Write the 17 feature names in order.
+@point Trace one particle through preprocessing and embedding.
+@point Predict whether changing padding values should change logits.
+@practice 120
+@say Open the feature construction function and write the seventeen columns in a notebook. Group them into kinematics, charge and identity, and displacement information. Choose one hypothetical particle and describe which raw measurements are needed to construct its row. Then predict what should happen to the model's logits if you change only padded feature values while preserving the mask and all real inputs. Your answer should be a statement about model behaviour, not just about how many zeros the input contains.
+@answer A correct masked model should keep the jet logits unchanged, within numerical tolerance, when only masked positions are altered. This checks more than zero padding: it checks information isolation. The particle embedding can produce nonzero padded states, but those states must not become valid attention keys or enter pooling. The course reconstruction includes a test of this property. If it fails, trace every path from padding to the output, including relation summaries, pair bias, and class attention.
+
+@chapter Pairwise physics: constructing the second stream
+@scene A relation belongs to two particles
+@point U[b,i,j] describes the pair i,j inside jet b.
+@point Pair inputs have four channels, not seventeen.
+@point R is computed once, then reused by particle blocks.
+@math U:[B,N,N,4] -> PairMLP -> R:[B,N,N,64]
+@visual jets
+@say A particle can be described individually, but classification also depends on how particles relate to one another. Are they close in angle? How is momentum shared? What is their combined invariant mass? The pair tensor stores a compact set of such descriptors for every pair in a jet. Each position in this tensor contains four input features, not another copy of all seventeen particle features.
+@say The pair embedding turns those four values into a learned relation vector. In the standard configuration it has sixty four channels. We call the collection of these vectors the relational stream. The particle stream contains one state per particle. The relation stream contains one state per pair. यही dual stream नाम का मतलब है। It does not mean query versus key, and it does not mean two separate jet classifiers.
+@say In this implementation, the relation vectors are computed once during a forward pass and reused across the particle transformer blocks. They are not repeatedly updated by a second stack of relation transformers. Per-layer gating can summarize the same relations differently as particle states change, which is distinct from changing the relation tensor itself.
+@scene Rapidity and wrapped angular separation
+@point y = 0.5 * log((E+pz)/(E-pz)).
+@point Wrap delta phi into a principal interval.
+@point Pair distance uses rapidity difference and wrapped delta phi.
+@math delta_ij = sqrt((y_i-y_j)^2 + wrapped(phi_i-phi_j)^2)
+@say Rapidity combines energy and longitudinal momentum through a logarithmic ratio. The code floors the relevant positive quantities for numerical stability. For highly relativistic particles, rapidity and pseudorapidity can be close, but they are not identical definitions in general. Our reconstruction follows the rapidity calculation used by the pairwise feature function.
+@say Azimuth is an angle around a circle. A particle near positive pi and another near negative pi are close, not almost a full circle apart. Therefore we wrap their angle difference into a principal interval before squaring it. Failing to wrap creates an artificial discontinuity at the coordinate boundary, and the model could learn artifacts from that discontinuity.
+@say Combine the rapidity difference and wrapped azimuthal difference using a Euclidean magnitude in that two-coordinate plane. This gives the pair separation used here. The result is floored before taking a logarithm. एक useful test है angles को boundary के दोनों तरफ रखना। The computed separation should be small when the physical directions are close, regardless of which side of the coordinate cut they occupy.
+@scene Relative transverse momentum and momentum sharing
+@point kt = min(pt_i,pt_j) * delta.
+@point z = min(pt_i,pt_j) / (pt_i+pt_j).
+@point For positive momenta, z is at most one half.
+@math pt_i=20, pt_j=5, delta=0.2 -> kt=1, z=0.2
+@say Relative transverse momentum combines the smaller transverse momentum with angular separation. In the displayed example, the smaller momentum is five and separation is zero point two, so the product is one in the chosen units. Momentum sharing compares the smaller momentum with the sum. Five divided by twenty five gives zero point two.
+@say Why use the smaller momentum? These quantities are symmetric under exchanging the two particles. Swapping the pair should not change these raw relation features. The momentum-sharing value reaches one half when the two momenta are equal, and becomes small when one particle is much softer than the other. The log of that value is therefore nonpositive for physically positive inputs.
+@say Symmetric input features do not imply that the final attention matrix is symmetric. Query and key projections are different, query and key gates are different, and each row has its own softmax denominator. यह बहुत important separation है: input relation symmetry और information flow symmetry एक चीज नहीं हैं। We will revisit this when interpreting attention maps and gates.
+@scene Invariant mass and why a pair is not the whole parent
+@point Add four-vectors before computing mass squared.
+@point m2 = (Ei+Ej)^2 - |pi+pj|^2.
+@point A constituent pair need not reconstruct the parent mass.
+@math U_ij = [log(delta), log(kt), log(z), log(max(m2,eps))]
+@say For a pair, first add their energies and momentum components, then form energy squared minus the squared three-momentum magnitude. This gives invariant mass squared in the units used here. Do not add the individual masses and call that the pair mass. The cross terms encode information about how the two four-vectors combine.
+@say Small numerical errors or unusual inputs can produce nonpositive values, so the implementation applies a positive floor before the logarithm. The fourth pair feature is log mass squared, not log mass. Confusing those differs by a factor of two for positive mass and changes the expected input distribution of the trained embedding.
+@say A pair of arbitrary jet constituents is not generally the full set of decay products of a parent boson. Therefore its invariant mass is not guaranteed to peak at the parent's mass. Physical interpretation needs care about which particles are selected and what information is missing. हम useful features बनाते हैं, लेकिन हर pair को पूरा decay system नहीं मानते। This prevents a tempting but incorrect explanation of why the relation embedding works.
+@scene Self-pairs, masking and learned biases
+@point Raw self-pair and padded-pair features are set to zero.
+@point A biased MLP can map a zero input to a nonzero relation.
+@point Self-relations remain in the gate summary in this implementation.
+@math PairMLP(0) is not necessarily 0
+@say The preprocessing function zeroes the raw pair features on the diagonal and for pairs involving padding. This avoids assigning a meaningless log separation to a particle paired with itself. But the next stage is a learned MLP with biases. A zero input can become a nonzero output after the first bias and the subsequent nonlinear transformation.
+@say Therefore do not say that self-pairs are absent from the model just because their raw input is zero. The gate aggregation uses the valid-neighbour mask and includes a real particle's self-position. Its embedded self-relation may contribute. If you wanted to exclude self-relations, you would need to change the aggregation mask deliberately and treat that as an architecture change.
+@say Padded pairs also require downstream masking for the same reason. Zero raw pair inputs alone do not guarantee zero learned pair bias or relation vectors. The distinction between encoding a neutral input and removing an interaction is subtle but essential. यह code पढ़ते समय ध्यान देने वाली बात है: zeroing और masking अलग operations हैं, और दोनों की जगह समझनी चाहिए।
+@scene Pair feature lab: calculate and test symmetry
+@point For pt=[20,5] and delta=0.2, calculate log kt and log z.
+@point Check U[i,j] equals U[j,i] for finite valid vectors.
+@point Check diagonal and padded-pair raw features are zero.
+@practice 120
+@say Calculate the first simple pair values on paper. Relative transverse momentum is one, so its natural logarithm is zero. Momentum sharing is zero point two, whose logarithm is approximately minus one point six zero nine. Then inspect the pairwise feature function and find the wrapped angle calculation, the mass-squared calculation, and the validity mask. If you can run Python, create a tiny physically valid batch and verify symmetry and zero diagonal entries.
+@answer The hand values are zero for log relative transverse momentum and approximately minus one point six zero nine for log momentum sharing. Raw pair symmetry follows because separation magnitude, minimum momentum, momentum sum, and invariant mass are unchanged by exchanging particles. Floating-point comparisons should use a tolerance. The diagonal is explicitly zeroed after feature construction. Once the relation MLP runs, do not repeat the diagonal-zero assertion on the embedded relations; that would be testing a property the model does not promise.
+
+@chapter Attention from a weighted average
+@scene Start with weighted averaging, not queries
+@point Each output is a weighted mixture of value vectors.
+@point Weights are nonnegative and sum to one per query.
+@point Attention learns how to choose those weights.
+@math output_i = sum_j A_ij * value_j
+@visual attention
+@say Before discussing queries and keys, imagine that you already know the attention weights. A receiving particle combines information from other particles using a weighted average of value vectors. If two values are two and ten and the weights are one quarter and three quarters, the result is eight. With vector values, do the same weighted sum independently for every channel.
+@say The weights are organized into a matrix. Row i contains the distribution used to update receiving particle i. Column j refers to the source whose value is being read. Each row sums to one before attention dropout. This is a communication mechanism: one particle representation can incorporate information from other particles in the same jet.
+@say The remaining question is how to choose the weights from the current input. Attention answers by computing compatibility scores and applying softmax. We do not store a fixed learned weight for every possible particle pair. Instead, shared learned projections create input-dependent scores. इसलिए different jets के attention maps अलग हो सकते हैं, even though the model parameters are unchanged during inference.
+@scene Queries, keys and values are learned projections
+@point Q asks which features are relevant to the receiver.
+@point K describes how a source can be matched.
+@point V carries the content that is mixed.
+@math Q = X Wq.T + bq; K = X Wk.T + bk; V = X Wv.T + bv
+@say Query, key, and value are three learned transformations of the token representation. A library analogy can help: a query describes what you seek, keys describe searchable properties, and values hold the information you retrieve. But these are vectors learned through the classification objective, not literal sentences or manually assigned metadata. The analogy should help organize the roles without becoming a physical claim.
+@say Query and key vectors determine compatibility through a dot product. Value vectors are combined using the resulting weights. Because the three projections are separate, the features useful for deciding where to read need not be identical to the features useful to transmit. That separation gives attention flexibility beyond averaging the original particle features directly.
+@say The projections include biases in this repository. When deriving exact implementation equations, include those biases rather than silently assuming purely linear maps. For broad conceptual diagrams they are sometimes omitted for readability, but a reconstruction must restore them. हमारे लक्ष्य में concept और exact code दोनों हैं, इसलिए हम shortcut notation को implementation detail से अलग रखेंगे।
+@scene Why divide the dot product by square root of width?
+@point Many channel contributions add into one score.
+@point Under simple assumptions, dot-product variance grows with width.
+@point Scaling reduces softmax saturation risk; it is not a universal proof.
+@math score_ij = (q_i dot k_j) / sqrt(d)
+@say Suppose query and key components are approximately independent, centered, and have unit variance. Each product then contributes variance of roughly one, and summing d such contributions gives variance roughly d. The standard deviation grows like the square root of d. Dividing by that square root keeps the rough score scale more stable as the head width changes.
+@say These are motivating assumptions, not exact facts about every trained network. Learned channels can be correlated and have different distributions. Still, the scaling is a practical design that helps avoid starting with dot products so large that softmax is nearly one-hot and its gradients are poorly conditioned for learning.
+@say Note which width appears in the denominator. It is the number of channels in one attention head, not the full model width and not the number of particles. With model width one hundred twenty eight and eight heads, each head has width sixteen, so the scale divisor is four. यह छोटी dimension choice बहुत common implementation bug है। Always derive the number from the tensor being dotted.
+@scene Work one attention row by hand
+@point Query=[1,0]; keys=[1,0] and [0,1].
+@point Scores are [1/sqrt(2),0].
+@point Softmax is about [0.670,0.330].
+@math values=[2,10] -> weighted output about 4.642
+@visual attention
+@say Our query is one, zero. The first key is one, zero, and the second is zero, one. Their dot products are one and zero. The head width is two, so divide the first score by square root of two. Exponentiating and normalizing gives approximately zero point six seven zero and zero point three three zero.
+@say Use scalar values two and ten just to keep the arithmetic simple. Multiply two by the first probability and ten by the second, then add. The result is approximately four point six four two. This output is neither the query nor the most highly weighted value alone. It is a mixture. In a real head, each value has several channels and the same row of weights mixes all of those channels.
+@say Change only the values and the weights remain the same for this isolated computation. Change a key and the weights can change. Change the query and the whole row can change. यही Q, K, V का functional difference है। In the complete network they all depend on the input, but this controlled thought experiment helps isolate their mathematical roles.
+@scene Softmax couples every key in the row
+@point Increasing one score changes every normalized weight.
+@point More weight is relative, not an isolated absolute quantity.
+@point The derivative is A_j * (indicator(j=k) - A_k).
+@math d softmax(z)_j / d z_k = A_j * (delta_jk - A_k)
+@say Softmax normalization couples the candidates. If one score increases while the others stay fixed, its own probability increases and the others decrease. A key can receive less attention even when its own raw score is unchanged, because another candidate became more competitive. Therefore compare complete rows rather than interpreting an individual logit without context.
+@say The derivative captures this coupling. A probability's derivative with respect to its own score is probability times one minus probability. Its derivative with respect to another score is the negative product of the two probabilities. You do not need to memorize the symbols immediately. Understand that changing one score redistributes a fixed total of one across the row.
+@say This matters when interpreting gates. A gate changes some score contributions, and softmax then changes the whole distribution. There is no general rule that doubling a gate doubles an attention probability. Gate changes can even lower attention to a particular key when the affected dot-product contribution is negative. हम आगे इसका छोटा counterexample निकालेंगे ताकि intuition equation के साथ consistent रहे।
+@scene Attention lab: replace the library with explicit operations
+@point Compute Q @ K.transpose(-2,-1), scale, softmax, then @ V.
+@point Compare against scaled_dot_product_attention with dropout disabled.
+@point Assert that each attention row sums to one.
+@code scores = q @ k.transpose(-2,-1)
+@code weights = (scores / math.sqrt(d)).softmax(-1)
+@code out = weights @ v
+@practice 150
+@say Implement the explicit attention calculation on tiny random tensors. Use a single head first. Compare the output with PyTorch scaled dot product attention while dropout is zero and there is no mask. The library function already applies the head-width scaling, so do not pre-scale the query and then accidentally scale again unless you intentionally adjust the function's scale argument. Check both the output shape and numerical agreement.
+@answer The explicit and library outputs should agree within a suitable floating-point tolerance. Attention rows sum to one because the softmax is over the key axis. If they do not, check the selected axis before blaming numerical precision. If the outputs differ by more than rounding error, inspect the transpose, scaling, and dropout setting. This comparison is especially valuable because optimized attention implementations may hide the intermediate weight matrix even though they compute the same operation.
+
+@chapter Multihead attention and masks
+@scene Several heads, several learned communication patterns
+@point D=128 channels split into H=8 heads of d=16.
+@point Heads compute separate attention distributions.
+@point Concatenate head outputs, then apply an output projection.
+@math [B,N,D] -> [B,H,N,d] -> attention -> [B,N,D]
+@visual tensor
+@say Multihead attention divides the projected channel space into several groups. Each group computes its own compatibility scores and weighted value mixture. With eight heads, the same receiving particle can use eight different attention distributions. This provides several learned communication patterns rather than forcing every channel to share a single distribution.
+@say Do not assume one head must learn angle while another learns charge or mass. Such specialization is possible, but head indices have no guaranteed semantic assignments. These interpretations require measurements on a trained model. The architecture provides capacity for different patterns; it does not prescribe a human-readable job title for each head.
+@say After attention, we transpose the head and particle axes back, concatenate the head channels, and apply an output projection. That projection mixes information across heads. It also includes a bias in this implementation. The full attention sublayer therefore contains query, key, value, and output projections. Parameter counting must include all four, not only the first three. हर head अलग full-width model नहीं है; total width को हिस्सों में बांटा जाता है।
+@scene The exact head transformation
+@point Split only the final channel axis.
+@point Put heads before particles for batched matrix products.
+@point Reverse both operations before the output projection.
+@code b, n, d_model = x.shape
+@code h = x.view(b, n, heads, head_dim)
+@code h = h.transpose(1, 2)
+@code # result: [batch, heads, particles, width]
+@say Write the axes before writing the code. A projection starts with batch, particles, model channels. Reshape the last axis into number of heads and channels per head. The result is batch, particles, heads, head width. Transpose the middle two axes to obtain batch, heads, particles, head width. Matrix multiplication over the final two axes can now compute an attention matrix for each batch item and each head.
+@say Keys are transposed across their final two axes when forming scores. The result has batch, heads, receiving particles, source particles. Multiplying by the value tensor replaces the source-particle axis with value channels. This is a contracted sum over sources. Reading the axes this way explains the matrix operation instead of treating it as a memorized formula.
+@say Divisibility is required: model width must be divisible by the number of heads for this equal-width implementation. A width of one hundred twenty eight with eight heads works. A width of one hundred thirty with eight heads does not. Validate configuration constraints before a long training run, not after loading millions of examples.
+@scene Mask conventions differ between PyTorch APIs
+@point Model input mask: True means real.
+@point SDPA boolean attention mask: True means allowed.
+@point MultiheadAttention key_padding_mask: True means ignored.
+@math additive mask: valid -> 0; invalid -> -infinity
+@visual mask
+@say This is one of the most important practical warnings in the course. The same boolean value does not mean the same thing in every attention API. Our model input mask uses true for a real particle. PyTorch scaled dot product attention uses true for an allowed position in its boolean attention mask. But MultiheadAttention's key padding mask uses true for a position that should be ignored.
+@say Therefore the class-attention code inverts the keep mask before passing it as a key padding mask. If you forget the inversion, you can discard real particles and attend to padding. This bug may still produce finite outputs, so simply checking that the model runs is not sufficient.
+@say Another representation uses an additive floating-point mask. Put zero on allowed entries and negative infinity on disallowed entries before softmax. The disallowed exponentials become zero. When pair bias is present, masking is applied to that floating-point logit tensor. अपने notebook में हर mask के साथ उसका meaning लिखो। A variable called mask is not enough documentation when different functions use opposite conventions.
+@scene Mask keys, understand queries, preserve real outputs
+@point Real queries must never read padded keys.
+@point Padded queries can be computed if later paths ignore them.
+@point Padding invariance is a behavioural test.
+@visual mask
+@say Key masking prevents real particles from reading absent particles. We do not necessarily need to zero every padded query output at every intermediate layer, as long as those padded states never become valid keys and never contribute to the final pooling. This distinction can save unnecessary operations, but it places a responsibility on every downstream path to respect the mask.
+@say The relation gate also has a neighbour dimension. Its summary must exclude padded neighbours, even if raw padded pair inputs were already zero. With conditioned summaries, scores for invalid neighbours are set to negative infinity before the neighbour softmax. With shared summaries, relation vectors are multiplied by the validity mask and divided by the valid count.
+@say To test the complete behaviour, hold real inputs fixed and replace padding with conspicuously different finite values. The output should remain unchanged within tolerance in evaluation mode. This is stronger than looking at a masked attention matrix in one block. It checks all relevant paths together. अगर result बदलता है, तो कहीं ना कहीं padding से information leak हो रही है।
+@scene Head and mask lab
+@point Use B=2, N=5, D=16, H=2.
+@point Predict shapes for Q, scores and mixed values.
+@point Give the last two positions huge values and mask them.
+@practice 120
+@say Build a two-head attention example using the displayed dimensions. Before running it, write the shape of the split query, the score tensor, and the output before head concatenation. Then create a keep mask that disables the final two positions. Give those padded value vectors large finite entries. A correct mask should prevent those large entries from influencing real query outputs. Repeat after changing the padded keys as well.
+@answer The split query shape is two, two, five, eight. Scores have shape two, two, five, five. Mixed values return to two, two, five, eight before merging heads. Large masked values should not affect real outputs because their attention weights are zero. Test this without dropout so random masks do not obscure the comparison. If you see changes, inspect the mask broadcasting shape and whether true means keep or ignore in the specific API you called.
+
+@chapter Particle Transformer: the additive-bias baseline
+@scene Why include pair information in attention?
+@point Particle embeddings describe individuals.
+@point Pair features describe relationships not explicitly stored in one token.
+@point A learned per-head bias adjusts compatibility scores.
+@math score_hij = dot(q_hi,k_hj)/sqrt(d) + bias_hij
+@visual attention
+@say Ordinary self-attention learns relationships indirectly from token representations. Particle Transformer introduces explicit interaction information by adding a learned pair-dependent term to the attention logits. This gives the network direct access to selected physical relations between the receiving and source particles when choosing attention weights.
+@say In our local implementation, a linear projection maps each relation vector to one bias value per head. Rearranging axes gives batch, heads, particles, particles. That tensor can be added to the content dot-product scores. The bias is not added to the input particle features or to the value vectors. It changes the softmax distribution through the logits.
+@say Positive bias makes a candidate more competitive relative to candidates whose scores stay fixed. Negative bias makes it less competitive. But the resulting probability still depends on the entire row and the content scores. एक bias value अपने आप attention probability नहीं है। Keep the distinction between an additive score adjustment and a normalized weight clear when plotting model internals.
+@scene Bias is learned from relations, not a free lookup table
+@point Same encoder and projection are reused for every pair.
+@point Symmetric raw features constrain the possible pair biases.
+@point Softmax and Q/K projections can still produce asymmetric attention.
+@math bias_hij = w_h dot R_ij + b_h
+@say It is tempting to draw the pair bias as an arbitrary matrix of learned numbers. That would be misleading here. The matrix is generated from the current input relations using shared parameters. There is not a permanent independent learned parameter for every possible particle pair or every position in a jet. Different jets produce different bias matrices through the same function.
+@say Our raw pair features are symmetric for a valid pair, and the same pair encoder acts on both directions. Consequently the relation vectors and projected raw bias inherit that symmetry, up to numerical effects. But content scores need not be symmetric because the query and key transformations differ. Even if a score matrix were symmetric, row-wise normalization can produce a nonsymmetric attention matrix.
+@say This is a useful reasoning pattern. Trace a property through each operation instead of assuming it survives the entire network. Symmetry of one input is not automatically symmetry of the final output. उसी तरह, positive gate values do not imply positive dot products, because the projected query and key channels can be signed.
+@scene The local no-gate model is ParT-style, not exact original ParT
+@point Disable gates, retain pair bias for the local baseline.
+@point Other embeddings and block choices still belong to this repository.
+@point A controlled comparison keeps the rest of the pipeline fixed.
+@code cfg = GDSParTConfig(
+@code     gate_mode="none",
+@code     pair_bias=True,
+@code     per_layer_gate=False)
+@say If we disable the gates and keep pair bias, our attention formula becomes the familiar additive-bias form. This is a useful local ParT-style baseline. However, that does not make the entire network an exact reproduction of the published Particle Transformer architecture. Embedding details, layer choices, training schedule, preprocessing, and implementation conventions can differ.
+@say A fair experiment for the effect of gating should hold the rest of the local pipeline fixed. Use the same data split, training budget, optimizer settings where appropriate, and multiple seeds. Then compare a gate-enabled model with a gate-disabled model trained under those conditions. This isolates the architectural choice more directly than comparing a local result with a number reported in a separate paper.
+@say Reproducing a published benchmark is also worthwhile, but it is a different task with more requirements. आपको decide करना होगा कि question क्या है: क्या gates हमारे pipeline में मदद करते हैं, या क्या हमने original paper reproduce किया है? Mixing those questions creates stronger conclusions than the evidence supports.
+@scene Hybrid v2 keeps both ways of using physics
+@point v2 uses gated Q/K and additive pair bias together.
+@point Gate-off removes one path, not all relation information.
+@point Gate-only v1-style settings are a different configuration.
+@math A = softmax((Q*gQ)(K*gK).T / sqrt(d) + pair_bias + mask)
+@visual gate
+@say The current v2 design is hybrid. Relations influence query and key channel scaling through gates, and they also generate an additive pairwise bias. Therefore saying that GDS replaces bias with gates is incomplete for this configuration. It adds a multiplicative mechanism while retaining the additive mechanism.
+@say Turning off gates in this hybrid does not remove all pair information. Pair bias remains unless you explicitly disable it too. Likewise, turning off pair bias while leaving gates tests a different question. An ablation table should state exactly which paths were enabled, along with whether gates were shared or per-layer and which pooling method was used.
+@say Older settings use sigmoid gates, shared uniform summaries, no pair bias, and masked mean pooling. The code supports these choices, but they should not be mixed into one vague architecture description. Configuration is part of the model definition. जब किसी checkpoint को explain कर रहे हो, उसके saved settings देखो, सिर्फ constructor defaults नहीं। The reported shared-gate checkpoint is not the same configuration as every default v2 instance.
+@scene Baseline design exercise
+@point Design four runs: no physics, bias only, gates only, hybrid.
+@point Keep data and training budget fixed.
+@point State which comparison answers whether gates add value.
+@practice 90
+@say Design a small experiment matrix. One run has ordinary attention without pair bias or gates. A second has pair bias only. A third has gates only. A fourth has both. Write which settings differ and which must stay constant. Then explain why comparing the hybrid only against ordinary attention does not isolate the effect of gates: both relation pathways changed. Use the work period to write a hypothesis before seeing any results.
+@answer Comparing hybrid against bias only most directly asks whether gates add value on top of the local additive-bias architecture. Comparing gates only against ordinary attention asks whether the gate path helps without bias. The full matrix can reveal interactions between the mechanisms. Multiple training seeds and uncertainty estimates are still needed, especially for small differences. Architecture ablations should retrain the alternatives; a test-time knockout answers a different question about dependence of one already fitted model.
+
+@chapter Gating: the defining GDS mechanism
+@scene Summarize relations before producing a particle gate
+@point A relation vector exists for every i,j pair.
+@point A shared gate averages valid neighbours for each i.
+@point The summary has one vector per particle, not per pair.
+@math s_i = sum_j mask_j * R_ij / sum_j mask_j
+@visual tensor
+@say The relation stream has two particle axes, but query and key gates need one vector per particle. We therefore aggregate over neighbours. In the shared-gate variant, hold the receiving particle fixed, multiply relation vectors by the valid-neighbour mask, add over neighbours, and divide by the number of valid particles. The result is a relation summary for each particle.
+@say This summary is not the same as averaging the particle states. It averages embedded pair features. A particle in a different relational environment can receive a different summary even if one of its individual raw features matches another particle's. The gate can therefore depend on how the particle sits within the jet's pairwise structure.
+@say The shared gate is computed once and reused across particle blocks. Shared means shared across depth in this context, not identical for every particle or every jet. Different particles have different summaries and therefore can have different gates. यह terminology साफ रखना जरूरी है। One set of learned gate parameters can produce many input-dependent gate vectors.
+@scene Separate MLPs produce query and key gates
+@point Query gate MLP and key gate MLP have separate parameters.
+@point Each maps 64 relation channels to 128 gate channels.
+@point The gate acts after projection, before splitting heads.
+@math gQ_i = activation(MLPq(s_i)); gK_i = activation(MLPk(s_i))
+@visual gate
+@say Two separate MLPs transform the relation summary. One produces the query gate and the other the key gate. Each uses an intermediate width equal to the model width and returns one scaling factor per query or key channel. The networks share the same summary input but not their learned weights.
+@say The attention code first computes the usual query and key projections, including their biases. It then multiplies those projected vectors elementwise by the corresponding gates. Only after gating are channels split into heads. This is important: gating the input before projection would generally be a different computation, because a learned matrix mixes channels and does not commute with arbitrary channelwise scaling.
+@say Values are not directly multiplied by these gates. Their influence still changes indirectly because gated queries and keys change the attention weights used to combine values. Therefore do not say values are unaffected in every sense. सही statement है कि V पर direct multiplicative gate नहीं लगाया गया। Distinguish the direct operation from its downstream effect.
+@scene Identity initialization makes the initial gate neutral
+@point Identity mode: g = 1 + tanh(z), range approximately (0,2).
+@point Last gate-MLP layer starts with zero weights and biases.
+@point Initial gates are exactly one, independent of the summary.
+@math z=0 -> tanh(z)=0 -> g=1
+@say Identity-mode gates use one plus hyperbolic tangent. For finite real logits, the mathematical range is strictly between zero and two, though floating-point saturation can reach limiting values numerically. A factor below one suppresses a channel's magnitude, while a factor above one amplifies it. Because the factor is positive, it does not flip the sign of that individual channel.
+@say The final linear layer of each gate MLP is initialized with zero weights and zero bias. Its output logits are therefore zero even though the earlier layer is randomly initialized. Applying one plus tanh gives exactly one. Multiplying query and key by one leaves them unchanged. This starts the network from a neutral gate path rather than randomly distorting attention immediately.
+@say Neutral does not mean permanently inactive. The final gate layer can receive gradients and begin moving away from zero. At the exact initialization, gradients into the earlier gate layer through that zero final weight can be zero; after the final layer changes, that path opens. यह training की शुरुआती dynamics है, gate failure का proof नहीं।
+@scene Sigmoid gates and identity gates are different choices
+@point Sigmoid gates lie between zero and one.
+@point Random sigmoid logits do not give exactly 0.5 everywhere.
+@point Comparing configurations requires tracking initialization too.
+@math sigmoid(z) = 1 / (1 + exp(-z))
+@say A sigmoid gate maps a real logit into the interval between zero and one. It can reduce a channel's magnitude relative to an ungated channel, but it cannot directly scale it above one. An identity-mode gate can both suppress and amplify around a neutral factor of one. These choices affect initialization and the space of accessible rescalings.
+@say It is common to say a sigmoid starts at one half. That is only exactly true if its input logit is exactly zero. In the sigmoid mode here, the final gate layer is not initialized to all zeros by the identity-specific initialization rule. Random inputs and random weights generally give a distribution of logits and therefore a distribution of gate values.
+@say A model can compensate for some average scaling through learned projection weights, but that does not make all initializations and training dynamics equivalent. जब ablation करते हो, केवल activation नाम नहीं बल्कि initialization भी record करो। Otherwise two runs may differ in both architectural expressiveness and the optimization starting point.
+@scene Query gating versus key gating
+@point Query gate changes how one receiver scores all candidate sources.
+@point Key gate changes how one source is scored by many receivers.
+@point Each channel contributes q_ic * k_jc * gQ_ic * gK_jc.
+@math score_ij = sum_c q_ic*k_jc*gQ_ic*gK_jc / sqrt(d)
+@visual gate
+@say Fix one receiving particle. Its query vector is compared with all candidate keys. Changing that particle's query gate modifies the channel weighting used across the whole attention row. Now fix one source particle. Its key is compared with many queries. Changing its key gate can affect the corresponding candidate across many rows.
+@say This gives a useful row-versus-column intuition, but it is not a guarantee of simple attention increases or decreases. Each channel contribution includes the signed query component, signed key component, and both positive gates. Contributions from different channels can reinforce or cancel. Softmax then couples all candidates within a row.
+@say In a single channel, the gate factors across pairs have an outer-product structure: a query-side factor for i times a key-side factor for j. They are not an arbitrary independent learned value for every pair and channel. The overall content score still sums over channels. इसलिए gating और additive pair bias अलग mathematical structures हैं। Neither should be described as a generic free matrix with no constraints.
+@scene A larger gate can reduce attention: a counterexample
+@point Query=1; two keys are -1 and 0.
+@point Original first-key probability is about 0.269.
+@point Double the negative key: probability falls to about 0.119.
+@math softmax([-1,0]) != softmax([-2,0])
+@visual gate
+@say Let's remove ambiguity with the smallest possible example. Use a scalar query of one, a first key of minus one, and a second key of zero. With head width one and no pair bias, the logits are minus one and zero. The first attention probability is about zero point two six nine.
+@say Now double the gate on the first key. That key becomes minus two, not plus two. The logits become minus two and zero, so the first probability drops to about zero point one one nine. The gate became larger, yet attention to that key decreased. This is why the phrase, larger gate means more attention, is not generally valid.
+@say If a positive scalar uniformly rescales a query and there is no varying additive bias, it rescales the whole row of content logits like an inverse temperature. But general channelwise gates are not uniform scalars, and pair bias changes the situation further. एक आसान analogy को universal theorem मत बनाओ। Use the full equation when signs, channel directions, or additive terms matter.
+@scene Gate derivative: what signal reaches a scaling factor?
+@point A gate is trained through the downstream loss.
+@point Local score sensitivity includes the other gate and signed Q/K.
+@point tanh saturation can reduce the derivative through gate logits.
+@math d score_ij / d gQ_ic = q_ic*k_jc*gK_jc / sqrt(d)
+@say Hold the projected query, key, and other gate fixed for a local derivative. The score derivative with respect to a query gate component is the product of the query component, key component, and corresponding key gate, divided by square root of head width. This quantity can be positive, negative, or zero. The direction in which a gate should move is therefore not determined by the gate value alone.
+@say The total loss derivative also includes the attention softmax, the value mixing, later layers, and the classification loss. For a query gate shared across comparisons, contributions from all relevant keys accumulate. If the gate parameters are reused across blocks, their parameter gradients accumulate contributions across those uses as well.
+@say Finally, the gate logit passes through tanh. Its derivative is one minus tanh squared, which becomes small near saturation. This creates a distinction between the sensitivity to the gate value and the sensitivity to the network parameters producing that gate. Gradient reasoning is a chain, not a single arrow from a physics feature to a class label.
+@scene Gate lab: verify neutrality and reject a false intuition
+@point Check all identity-initialized gates equal one.
+@point Reproduce the negative-key counterexample.
+@point Explain why a gate histogram alone cannot prove usefulness.
+@practice 150
+@say Instantiate an identity-mode relation gate and pass a random relation tensor with a valid mask. Assert that both returned gates are exactly one. Then implement the scalar negative-key example and print the two softmax probabilities. Finally write why observing nontrivial gate values after training does not prove that retraining a gate-free model would perform worse. This combines an initialization check, a mathematical counterexample, and an experimental reasoning check.
+@answer Identity initialization should produce all-one gates. The counterexample gives approximately zero point two six nine before scaling and zero point one one nine afterward. Nontrivial trained gates show that the fitted network uses non-neutral scalings, but usefulness relative to another architecture requires a controlled retraining comparison. A model can depend strongly on a component after co-adapting around it even when an alternative model could learn another solution without that component.
+
+@chapter Shared and conditioned gates inside transformer blocks
+@scene Per-layer gates can ask different relational questions
+@point Each block can own its own gate module.
+@point A projected current particle state weights neighbour relations.
+@point The relation tensor itself remains fixed within the forward pass.
+@math c_i = Wctx*h_i + bctx
+@say In the shared variant, the same relation summary and gates are reused at every depth. In the per-layer conditioned variant, each block owns a separate gate module. It first projects the normalized current particle state into relation-channel space. This context vector helps decide which neighbour relations are relevant at that stage of processing.
+@say Early particle states contain relatively local embedded information. Later states have already received messages from other particles. It is therefore plausible that different blocks should emphasize different parts of the relational environment. The architecture allows that, but it does not prove that deeper gates will follow a particular human-interpretable progression.
+@say The pair relation tensor is still the same tensor computed at the beginning of the forward pass. What changes is the aggregation weighting, conditioned on the evolving particle state, and the gate parameters owned by each block. यही fixed relations और dynamic summaries का फर्क है। Calling the relation stream recurrently updated would describe a different architecture.
+@scene Conditioned neighbour softmax
+@point Score each relation against the receiving particle context.
+@point Mask padded neighbours before softmax.
+@point Use the normalized weights to average relation vectors.
+@math alpha_ij = softmax_j(R_ij dot c_i / sqrt(Dp)); s_i = sum_j alpha_ij R_ij
+@visual attention
+@say For each receiving particle, compare its context vector with every relation vector in its row. Their dot product gives a neighbour score, scaled by the square root of relation width. Mask invalid neighbours, apply softmax over the neighbour axis, and take a weighted sum of relation vectors. The result again has one relation-summary vector per receiving particle.
+@say This is an attention-like operation inside the gate generator. It is separate from the main particle attention that mixes value vectors. The inner operation chooses which relation descriptors to emphasize. The outer attention chooses how particle value representations communicate. Keeping these two softmax operations distinct helps explain the code and its computational cost.
+@say The context comes from the block's normalized particle state, not directly from the raw seventeen features. The exact equations are implemented using tensor contractions, including einsum. Read an einsum expression by matching the named axes: relation has batch, receiver, neighbour, channel; context has batch, receiver, channel; the dot product removes channel and keeps neighbour.
+@scene Assemble one pre-LN block in the right order
+@point h=LN1(x); use h for Q/K/V and conditioned context.
+@point Add gated attention to x.
+@point Add FFN(LN2(updated x)).
+@math x1 = x + Attn(LN1(x)); x2 = x1 + FFN(LN2(x1))
+@code h = block.norm1(x)
+@code gq, gk = block.gate(rel, mask, x=h)
+@code x = x + block.attn(h, gq, gk, bias)
+@code x = x + block.ffn(block.norm2(x))
+@say A block begins with the incoming particle states. Normalize them using the first LayerNorm. If the block has its own conditioned gate, use that normalized state as the gate context. Otherwise use the shared gates computed earlier, or no gates for the baseline. The attention module receives the normalized particle states and the selected gates.
+@say Add the attention output to the original unnormalized state. Now normalize this updated state using the second LayerNorm, apply the feed-forward network, and add its result. The order of these residual updates is part of the architecture. A compact implementation can hide the distinction between the original state and the intermediate updated state, so name them explicitly when learning.
+@say Both residual outputs keep batch, particles, model width. The relation tensor has a different shape and is not added directly to the particle tensor. It influences the update through gates and pair bias. यही दो streams के बीच fusion है। They interact through carefully shaped functions rather than by adding incompatible arrays together.
+@scene What is shared across depth, and what is not?
+@point Particle attention and FFN weights differ between blocks.
+@point Pair embedding and pair-bias projection are shared in this model.
+@point Gate sharing depends on per_layer_gate configuration.
+@math shared-v2 parameters: 2,074,420; default per-layer v2: 2,488,116
+@say Each particle transformer block has its own attention projections, normalizations, and feed-forward network. The pair embedding is computed once, and the per-head pair-bias projection is also shared across blocks. Gate parameters depend on configuration: one shared gate module for the shared variant, or separate conditioned gate modules for the per-layer variant.
+@say With the standard dimensions, the shared v2 model has two million seventy four thousand four hundred twenty parameters. The default per-layer v2 configuration has two million four hundred eighty eight thousand one hundred sixteen. These counts describe the current implementation and settings, not all possible models called GDS. Changing depth, width, or pooling changes the count.
+@say Parameter count is only one part of cost. The pair activation tensor can be large even when its generating MLP has relatively few weights. Conversely, many feed-forward parameters can be reused across every particle. जब memory estimate बनाओ, parameter memory और activation memory को अलग रखो। We will calculate a concrete pair-tensor size in the training chapter.
+@scene Block reconstruction lab
+@point Trace shared gates and conditioned gates separately.
+@point Print shapes after every major operation in one tiny block.
+@point Confirm only the particle states are recurrently updated.
+@practice 150
+@say Walk through one block with a tiny configuration. Print the normalized particle shape, relation shape, gate shapes, attention output shape, and final block shape. Run once with a shared gate and once with a conditioned gate. Then draw arrows showing what is recomputed in each block. Do not copy the architecture figure blindly; derive it from the forward methods. This exercise is the bridge from understanding individual equations to reconstructing a coherent transformer.
+@answer Particle states and both gate outputs have shape batch, particles, model width. Relations have batch, particles, particles, relation width. Conditioned context has batch, particles, relation width, and its neighbour weights have batch, particles, particles. Every block updates particle states; the relation tensor is reused. Shared gates are reused, while conditioned gates are recomputed from each block's normalized state using that block's parameters. Pair bias is reused in both configurations when enabled.
+
+@chapter From particles to one jet prediction
+@scene Why pooling is necessary
+@point Transformer blocks return one vector per particle.
+@point The target is one class per jet.
+@point Pooling converts a variable-sized set into one fixed-width vector.
+@math [B,N,D] -> pooling -> [B,D] -> classifier -> [B,10]
+@visual flow
+@say After the particle blocks, every particle has a contextual representation. But our target is not a class for every particle; it is a class for the entire jet. We therefore need a pooling operation that gathers the set of particle states into one fixed-width representation per jet.
+@say A simple approach is a masked average. A more flexible approach uses a learned class token that reads information from the particle set through attention. This repository supports both. The pooling choice changes the architecture and should be included when comparing results or loading configurations.
+@say Pooling should respect particle ordering symmetry. If we permute the particles and consistently permute all related inputs and masks, the final jet prediction should remain the same up to numerical tolerance in evaluation mode. The intermediate particle states are allowed to permute with the particles; that is equivariance. The final jet output should not change; that is invariance. इन दो words में फर्क समझो: same reordering versus no change in final answer.
+@scene Masked mean pooling
+@point Normalize particle states, then average only valid rows.
+@point Divide by real particle count, not padded length.
+@point A simple baseline is useful even when CLS pooling is stronger.
+@math pooled = sum_i mask_i * LN(x_i) / sum_i mask_i
+@say Masked mean pooling multiplies each normalized particle state by its validity flag, sums over particles, and divides by the real particle count. If a batch is padded to one hundred twenty eight positions but a jet has only twenty real particles, the denominator is twenty. Dividing by the padded length would make the output depend on how much padding happened to be present in the batch.
+@say Averaging treats all final particle states equally at the pooling step, but those states already contain information mixed by attention. It is therefore too simplistic to say mean pooling ignores relationships. The relationships may already be encoded in each state before the average.
+@say The implementation applies the final LayerNorm to particle states before masked mean pooling in this branch. With class-token pooling, the final LayerNorm is applied to the pooled class state instead. These are not automatically interchangeable operations. एक nonlinear normalization और average को मनमाने order में बदलने से model बदल जाता है। Match the actual branch when reconstructing.
+@scene A class token is a learned reader
+@point Start with one learned CLS vector per jet.
+@point Only CLS is updated by each class-attention block.
+@point Keys and values include CLS itself plus all particles.
+@math query = LN([CLS; X])[:, :1]; keys,values = LN([CLS; X])
+@visual attention
+@say The class token begins as a learned parameter vector that is expanded across the batch. Each jet gets a copy of the same initial vector, but it reads different particle states and therefore develops a different pooled representation. Expanding the parameter does not create independent learned class-token parameters for every example.
+@say In a class-attention block, concatenate the class token with the particle tokens and normalize. Use only the normalized class token as the query. Use the complete normalized concatenation as keys and values. The class token can attend to itself as well as to the particles. Padding is excluded, while the class-token position is always valid.
+@say Only the class state is updated by the attention residual and its feed-forward residual. Particle states are not rewritten by these pooling blocks. The v2 configuration uses two such class-attention layers. Importantly, these blocks use ordinary MultiheadAttention rather than the relation-gated attention module. न gates और न pair bias को इन CLS blocks में automatically assume करो।
+@scene The classifier returns logits, not labels
+@point Final normalization precedes the classifier.
+@point Classifier: Linear(128,128) -> GELU -> dropout -> Linear(128,10).
+@point Softmax is for probabilities; argmax is for reported labels.
+@math logits:[B,10]; probabilities = softmax(logits, dim=-1)
+@say After pooling, the model has one vector per jet. A final normalization and classifier MLP transform that vector into ten logits. The logits are real-valued scores. They need not sum to one, and negative values are perfectly valid. Passing these scores to cross entropy is the standard training path.
+@say During evaluation, apply softmax if you need class probabilities, or take argmax if you only need the predicted label. Argmax of logits and argmax of their softmax give the same class because softmax preserves ordering. But metrics such as ranking-based AUC need scores or probabilities rather than only the winning label.
+@say Probability calibration is another question. A softmax output of ninety percent does not automatically mean that predictions of that confidence are correct ninety percent of the time. Calibration should be assessed empirically on suitable held-out data. Classification accuracy, ranking quality, and calibration measure different properties. इन्हें एक ही score का अलग नाम मत समझो।
+@scene End-to-end shape walkthrough
+@point Features [2,5,17]; pairs [2,5,5,4]; mask [2,5].
+@point States [2,5,128]; relations [2,5,5,64].
+@point CLS [2,1,128]; pooled [2,128]; logits [2,10].
+@visual tensor
+@say Follow one tiny batch through the full standard-width network. Start with two jets padded to five particles. The particle embedding changes seventeen channels to one hundred twenty eight. The pair embedding changes four pair channels to sixty four. The relation summary removes only the neighbour axis, and the gate MLP returns to model width.
+@say Every particle block preserves two, five, one hundred twenty eight. The pair bias has two, eight, five, five when there are eight heads. The class token has two, one, one hundred twenty eight. After class-attention pooling, squeeze only the singleton token axis to get two, one hundred twenty eight. The classifier returns two, ten.
+@say Be cautious with an unrestricted squeeze call. If batch size is one, squeezing every singleton dimension can accidentally remove the batch axis. The production code squeezes the specific class-token axis. यह edge case unit test में रखना चाहिए। A model that works for batch size two but fails for one often has an unsafe squeeze or indexing assumption.
+@scene Pooling lab: permutation invariance
+@point Permute particle rows and mask entries together.
+@point Permute BOTH pair axes using the same permutation.
+@point Compare logits in eval mode with dropout disabled.
+@practice 150
+@say Create a random permutation of particle positions. Apply it to the particle feature axis and the mask. For pair features, apply the same permutation to both particle axes. Run the model on the original and permuted inputs in evaluation mode and compare the logits. Then deliberately permute only one pair axis and observe why this no longer represents the same physical input arrangement.
+@answer Consistent permutation should preserve jet logits within numerical tolerance. The particle representations reorder, but shared functions and order-independent pooling preserve the final prediction. Permuting only one pair axis breaks the correspondence between particle identities and relations. That is not a legitimate invariance test; it creates mismatched inputs. This test checks a meaningful property of set-based architecture rather than just checking that dimensions remain compatible.
+
+@chapter Reconstruct the model in PyTorch
+@scene Reconstruction strategy: small verified pieces
+@point First reproduce primitives; then assemble the forward pass.
+@point Reuse repository components to compare exact behaviour.
+@point The educational assembly is not a new benchmark implementation.
+@code from gds_part_colab import (
+@code     ParticleEmbedding, PairwiseEmbedding,
+@code     RelationalGate, GDSParTBlock,
+@code     ClassAttentionBlock, GDSParTConfig)
+@say Now we turn understanding into construction. The included educational file builds an explicit top-level model from the repository's component classes. That gives you a readable assembly while keeping the component equations tied to the production code. It is not presented as an independently implemented official Particle Transformer reproduction.
+@say Your learning task is to gradually replace a component with your own implementation and compare it against the reference. Start with a linear layer or LayerNorm calculation, then explicit attention, then relation aggregation, then a complete block. Matching a trusted small component before assembling the next one makes failures easier to localize.
+@say A beginner often writes the entire model in one sitting and then encounters a final output mismatch with no idea where it began. Avoid that. Use deterministic evaluation, fixed random seeds, and tiny tensors. Print or assert intermediate shapes and compare numerical values. छोटे verified pieces मिलकर reliable system बनाते हैं। The goal is understanding that survives debugging, not merely a file that imports successfully.
+@scene Constructor: register modules and parameters correctly
+@point Use nn.ModuleList for a list of trainable blocks.
+@point Use nn.Parameter for the learned CLS token.
+@point Ordinary Python lists do not register child modules automatically.
+@code self.blocks = nn.ModuleList(
+@code     GDSParTBlock(cfg)
+@code     for _ in range(cfg.n_layers))
+@code self.cls_token = nn.Parameter(
+@code     torch.zeros(1,1,cfg.embed_dim))
+@say PyTorch modules need to know which parameters and submodules they own. Assigning a linear layer as an attribute registers it. For a sequence of blocks that you iterate manually, use ModuleList. A plain Python list containing modules does not register them in the same way, so optimizers, device moves, and state dictionaries may miss those parameters.
+@say The learned class token is not the output of a layer constructor. It is a tensor that should be optimized, so wrap it as a Parameter and store it on the module. Initialize it using the same convention as the production model when exact comparison matters. Buffers, by contrast, store non-parameter tensors that should move with the model but should not be optimized.
+@say A state dictionary maps names to parameter and buffer tensors. Compatible names and shapes let us load a production model's state into the educational assembly and compare outputs. This is stronger than initializing two models with vaguely similar settings and hoping their random numbers coincide. Exact comparison needs identical learned values as well as identical equations.
+@scene Forward pass: embed, build relations, bias and gates
+@point Embed F and U separately.
+@point Build bias [B,H,N,N], then mask invalid keys.
+@point Compute shared gates once, or let each block compute its own.
+@code x = self.particle_embed(features)
+@code rel = self.pairwise_embed(pairs)
+@code bias = self.pair_bias(rel)
+@code bias = bias.permute(0,3,1,2)
+@code bias = bias.masked_fill(
+@code     ~mask[:,None,None,:], float("-inf"))
+@say The forward method first validates the main input assumptions in the educational wrapper. It embeds particles and pairs separately. If pair bias is enabled, project relation vectors to one value per head, move the head axis into the attention layout, and fill padded key positions with negative infinity. If bias is disabled, use the boolean keep mask in the shape expected by scaled dot product attention.
+@say If a shared gate module exists, compute its two gates once from relations and the mask. If gates are per-layer, the top-level model does not manufacture a shared pair; each block computes its conditioned gates from its own normalized particle state. If gating is disabled, pass no gates at all.
+@say These branches should reflect configuration rather than ad hoc tests of tensor values. A gate equal to one is still a gate tensor; it is not the same code path as no gate. Mathematical equality at initialization can help testing, but branch selection should be explicit and reproducible. इस तरह checkpoint configuration और forward behaviour का संबंध साफ रहता है।
+@scene Loop through blocks, pool and classify
+@point Pass relations and masks through every block.
+@point Use CLS or masked mean according to configuration.
+@point Return logits and leave loss computation outside the model.
+@code for block in self.blocks:
+@code     x = block(x, rel, gates, bias, mask)
+@code cls = self.cls_token.expand(x.shape[0],-1,-1)
+@code for block in self.cls_blocks:
+@code     cls = block(x, cls, mask)
+@code pooled = self.final_norm(cls.squeeze(1))
+@code return self.classifier(pooled)
+@say The particle-block loop passes the evolving particle state plus the fixed relations, selected gates, attention mask or bias, and particle keep mask. Each block returns updated particle states. Afterward, the class-token branch expands the learned token across the batch, updates it through class-attention blocks, normalizes the pooled state, and classifies.
+@say The alternative mean-pooling branch normalizes particle states and averages only valid positions. Both branches end with the same classifier output shape. Keeping the loss outside the model makes it easier to reuse the network for training, evaluation, calibration, or feature inspection without embedding one specific training objective in the forward method.
+@say Production code uses activation checkpointing while training to reduce memory by recomputing block internals during backward. The educational assembly omits this optimization for readability. That changes memory and compute scheduling, not the intended deterministic forward equation. We compare evaluation outputs and also compare gradients on small dropout-free models to check the mathematical reconstruction.
+@scene The tests are part of the reconstruction
+@point Compare reference outputs and gradients with identical weights.
+@point Check gate initialization, masking and permutation behaviour.
+@point Reject malformed shapes and empty jets explicitly.
+@code python docs\learning_video\reconstruction.py
+@say A forward shape check is necessary but weak. A wrong transpose can still return the requested shape. Our reconstruction checks compare the educational assembly with the repository model after loading the same state dictionary. They cover shared gates, conditioned gates, and a no-gate configuration, with different pooling paths.
+@say Behavioural tests also change padded values, permute particles consistently, and verify identity initialization. A manual attention calculation checks the gated dot-product formula against the attention module. Pair-feature tests check symmetry and masking on physically valid synthetic four-vectors. Invalid-input tests confirm that the learning wrapper rejects empty jets rather than producing a misleading success-shaped output.
+@say Tests do not prove the classifier is scientifically good. They establish that selected mathematical and software properties hold. Real performance needs real data and controlled evaluation. फिर भी, बिना इन checks के training पर days खर्च करना risky है। Debug correctness at small scale before spending resources at large scale.
+@scene Coding lab: replace one component yourself
+@point Implement a masked relation mean without calling RelationalGate.
+@point Compare the summary, then feed it through the same gate MLPs.
+@point Test unequal particle counts in one batch.
+@practice 180
+@say Your reconstruction assignment is to implement the shared relation summary yourself. Use explicit broadcasting for the neighbour mask, sum over the neighbour axis, and divide by valid counts. Pass your summary through the reference query and key gate MLPs and their activations. Compare with the gate module's complete output. Include two jets with different real particle counts so an incorrect fixed denominator becomes visible.
+@answer The mask expands to batch, one, neighbours, one. Summing masked relations over the neighbour dimension gives batch, receiving particles, relation channels. The denominator comes from the same valid-neighbour mask and broadcasts across receiver and channel axes. Self-relations of valid particles remain included. If your result differs, check the reduction axis, denominator shape, and whether you accidentally removed the diagonal. After this works, the conditioned weighted summary is a natural next exercise.
+
+@chapter Training safely: data, memory and diagnostics
+@scene Synthetic data checks plumbing, not physics performance
+@point Random labels are useful for code checks, not benchmark claims.
+@point A tiny fixed batch can test whether optimization is connected.
+@point Real validation must use held-out real data.
+@say A synthetic batch is useful because you can control shapes, masks, and edge cases without loading the full dataset. It can verify that the model returns logits, the loss is finite, gradients exist, and parameters update. Random features and random labels do not establish that the architecture learns meaningful jet physics.
+@say A tiny fixed-batch overfitting check can test whether optimization is connected end to end. With enough capacity and appropriate settings, the model should often fit a small fixed collection. Failure can reveal broken gradients, incorrect labels, excessive regularization, or a training-loop error. Success still says little about generalization to unseen jets.
+@say Keep the objective of each diagnostic explicit. A forward test checks computation. A gradient test checks differentiation. A tiny fit checks optimization plumbing. A held-out evaluation checks predictive behaviour on a distribution. एक test से चारों claims मत करो। This discipline prevents impressive-looking but meaningless synthetic accuracy reports.
+@scene Build pairs per batch instead of storing every dense tensor
+@point Cache particle features, four-vectors, offsets and labels.
+@point Compute dense pair features from the current padded batch.
+@point Group similar particle counts to reduce wasted N squared work.
+@math pair storage scales as B * N * N * channels
+@say Pair tensors grow quadratically with padded particle count. Storing every dense pair tensor for millions of jets would be expensive. The repository caches compact particle arrays and four-vectors in a ragged representation, with offsets marking each jet's particle range. The loader pads the current batch, and pair features are computed from that batch.
+@say Ragged means that jets are stored with their actual particle counts rather than each reserving the maximum number of rows. During batching, shorter examples still need padding for rectangular tensor operations. Grouping jets with similar counts can reduce the maximum padded length in each batch and therefore reduce both particle and especially pairwise work.
+@say This optimization must not silently alter the label distribution or validation procedure. Training can shuffle while grouping for efficiency; evaluation should remain deterministic and cover the intended examples. Data loading is part of the experiment, not merely a mechanical prelude. अगर loader कुछ classes skip करता है, तो model architecture सही होने पर भी result misleading हो सकता है।
+@scene Calculate activation memory before choosing a batch size
+@point R has B*N*N*Dp entries.
+@point B=32, N=128, Dp=64 gives 33,554,432 entries.
+@point Float32 storage alone is 128 MiB, before gradients and other activations.
+@math 32 * 128 * 128 * 64 * 4 bytes = 134,217,728 bytes
+@say Let's calculate one tensor rather than guessing from parameter count. With batch size thirty two, particle length one hundred twenty eight, and relation width sixty four, the relation tensor contains thirty three million five hundred fifty four thousand four hundred thirty two entries. At four bytes per float32 entry, that is one hundred twenty eight mebibytes for this tensor alone.
+@say Training needs additional activations, gradients, parameters, optimizer state, and temporary workspace. Attention scores and conditioned-gate operations add their own costs. Therefore this single-tensor estimate is a lower bound on relevant memory, not a prediction of the complete peak. Doubling particle length makes this pair tensor four times larger; doubling batch size makes it twice as large.
+@say Activation checkpointing trades extra recomputation during backward for reduced stored intermediate activations. Mixed precision can reduce some memory and improve speed on suitable hardware, but stability and hardware support matter. पहले tiny configuration पर correctness, फिर memory measurement, फिर scale up। An out-of-memory error is not solved scientifically by changing several architectural settings without recording them.
+@scene Learning rate, schedules and numerical precision
+@point Start with a stable small experiment.
+@point Warmup and decay change optimizer step size over time.
+@point Mixed precision needs appropriate scaling and finite-value checks.
+@say The learning rate controls update size, while a schedule changes it over training. Warmup starts smaller and increases toward a chosen scale; decay later reduces it. These choices can strongly affect the comparison between architectures. A gate-enabled model and a baseline should not be compared after accidentally using different effective training budgets or inconsistent schedules.
+@say Mixed precision uses lower precision for suitable operations while retaining higher precision where needed. On supported GPUs, autocast and gradient scaling help manage performance and numerical range. The exact API and dtype depend on hardware and PyTorch version. Do not copy a CUDA-only training recipe into a CPU environment and assume the same behaviour.
+@say Monitor finite loss values, gradient norms where useful, learning rate, throughput, and validation metrics. If loss becomes nonfinite, surface the problem instead of silently replacing it with zero and continuing. Such a fallback can hide a broken run behind a completed progress bar. Training logs should help diagnose reality, not merely make the run look successful.
+@scene Saving, resuming and choosing the checkpoint
+@point Save model, optimizer, scheduler, epoch and relevant scaler state.
+@point Preserve configuration and preprocessing assumptions.
+@point Select on validation; evaluate the test set afterward.
+@say A useful training checkpoint contains more than model weights. To continue the same optimization process, save optimizer state, scheduler state, epoch or step counters, and mixed-precision scaler state when relevant. If you use an exponential moving average of weights, preserve and identify that state too. Evaluation of raw weights and averaged weights should not be mixed without reporting it.
+@say Save configuration and enough data-pipeline information to reconstruct the inputs. A model file with no feature order, class order, or normalization convention is difficult to use reliably. Record seeds and software versions for reproducibility, while acknowledging that exact bitwise determinism can depend on hardware and kernels.
+@say Choose the best checkpoint using validation criteria defined for the experiment. Then evaluate it on the held-out test set. Repeatedly choosing among models based on test accuracy turns the test set into a selection set. यह scientific workflow की बात है, सिर्फ coding style की नहीं। A disciplined selection protocol is as important as a sophisticated attention mechanism.
+@scene Training lab: a cautious first run
+@point Run the reconstruction checks first.
+@point Run a tiny synthetic optimization smoke test.
+@point Only then configure a small real-data training run.
+@code python docs\learning_video\reconstruction.py
+@code python docs\learning_video\reconstruction.py --train-demo
+@practice 150
+@say Run the provided reconstruction checks, then the optional tiny training demonstration. Observe the reported loss values and confirm that the optimizer changes parameters. This demonstration is intentionally small and is not a benchmark. Before moving to real data, write down the feature contract, label mapping, split locations, batch size, learning rate, architecture configuration, and checkpoint directory you intend to use.
+@answer A successful smoke test shows that selected code paths execute and optimization is connected. It does not justify a claim about jet classification accuracy. For real training, use the repository's established training entry point and data guide rather than treating the educational demo as a replacement trainer. If a dependency or dataset is missing, report that explicitly. Do not fabricate a completed training result from synthetic data or from an old checkpoint with different settings.
+
+@chapter Evidence, interpretation and your final project
+@scene Accuracy, confusion matrices and AUC answer different questions
+@point Accuracy measures the fraction of correct top-class predictions.
+@point A confusion matrix exposes class-specific mistakes.
+@point AUC measures ranking under a specified multiclass convention.
+@math accuracy = number_correct / number_examples
+@say Accuracy is easy to understand: count correct predicted labels and divide by the number of examples. But a single average can hide large differences between classes. A confusion matrix shows which true classes are mistaken for which predicted classes. Always label its axes and state whether entries are counts or normalized proportions.
+@say AUC summarizes ranking quality rather than only the winning label at one decision rule. In a multiclass task, the aggregation convention matters: one-versus-one and one-versus-rest are not interchangeable names. Macro averaging weights class-level quantities equally, while other averaging schemes use different weights. Compare like with like.
+@say The saved ten-epoch shared-v2 result reports about eighty four point eight four percent accuracy and a macro one-versus-one AUC around zero point nine eight five three on the stated test setup. These are measured results for that run, not a promise for every reconstruction or every dataset. वर्तमान remote training status इस video में assume नहीं किया गया है। A historical metric should never be narrated as proof that an unverified current job finished.
+@scene Does gating help? Separate three different claims
+@point Non-neutral gates show learned scaling.
+@point Test-time knockout measures fitted-model reliance.
+@point Retrained ablations measure comparative architecture performance.
+@visual gate
+@say There are three different questions. First, did the trained gates move away from their neutral values? Gate distributions can answer that. Second, does this fitted network rely on its gates? A test-time intervention that replaces them with ones can provide evidence. Third, does including gates lead to better models than training without them? That requires controlled retraining comparisons.
+@say These questions are related but not equivalent. If a network co-adapts its projections and downstream layers around a gate, removing that gate afterward can seriously damage performance. A separately trained gate-free network may nevertheless learn a different effective solution. Therefore a large knockout drop does not directly quantify the accuracy gain caused by adding gates to the architecture.
+@say Conversely, a small difference between retrained models cannot simply be declared noise without uncertainty analysis. Multiple seeds, dataset sampling, and statistical comparisons matter. हमें neither hype करना है nor बिना evidence dismiss करना है। The correct conclusion should be no stronger than the experiment actually supports.
+@scene Reading the local ablation evidence cautiously
+@point Short shared-gate+bias run: accuracy 0.696588.
+@point Matched local no-gate+bias run: accuracy 0.694242.
+@point Difference: 0.2346 percentage points; one short-budget comparison.
+@math 100 * (0.696588 - 0.694242) = 0.2346 percentage points
+@say In the recorded short-budget local comparison, the shared-gate plus bias model reached accuracy zero point six nine six five eight eight, while the no-gate plus bias model reached zero point six nine four two four two. Their difference is zero point zero zero two three four six in fractional accuracy, or zero point two three four six percentage points.
+@say These runs used a short training budget and are not the same experiment as the longer ten-million-jet result. The numbers are useful preliminary evidence, but they do not establish a robust general advantage across seeds, training budgets, or configurations. A small positive difference is still a measured difference; its reliability needs additional evidence.
+@say Be precise with percent versus percentage points. Moving from sixty nine percent to seventy percent is one percentage point, not necessarily a one percent relative improvement. Reporting the unit clearly prevents accidental exaggeration. इसी तरह published ParT numbers को local controlled baseline की तरह मत treat करो। Different pipelines can differ for reasons unrelated to gates.
+@scene Gate correlations are hypotheses, not explanations by themselves
+@point Correlation with jet radius or momentum can be confounded.
+@point Mean gates discard channel signs and Q/K/value interactions.
+@point Inspect interventions, attention and outputs before causal stories.
+@say Suppose the average query gate correlates with distance from the jet axis. That is an observation about a summary statistic. It does not prove that central particles search for peripheral particles, because attention depends on signed query and key components, both gates, pair bias, and softmax competition. Averaging gate channels discards much of that information.
+@say Particle categories, momenta, multiplicities, and angular structure can be correlated with each other. A gate's apparent relationship with one variable may be explained partly by another. This is especially important when the shared gate does not directly receive identity or displacement features. Its correlations with those quantities may be indirect.
+@say Better interpretation combines controlled interventions, conditional analyses, actual attention distributions, value contributions, and changes in output predictions. Even attention weights alone are not a complete explanation of a nonlinear classifier. एक attractive physics story बनाने से पहले competing explanations test करो। Scientific restraint is a strength of the project, not a weakness.
+@scene Where MoE fits, and what it does not change
+@point The extension replaces particle FFNs with routed experts.
+@point Shared attention, gates and pooling are distinct from routing.
+@point Equal experts can reproduce a dense FFN under exact conditions.
+@math output_i = sum_e selected_weight_ie * expert_e(x_i)
+@say The related mixture-of-experts project changes the feed-forward part of particle blocks. A router chooses a small subset of expert MLPs for each particle and combines their outputs with weights. This is separate from the query and key gating mechanism we have studied. Both use the word gate in some machine-learning literature, but they control different objects.
+@say If all experts are identical copies of a dense FFN and selected mixture weights sum to one, the deterministic mixture output equals that dense FFN output, provided no extra noise or other behaviour changes are introduced. This motivates sparse upcycling from a dense checkpoint. Dropout, routing details, and training can break exact equality outside those conditions.
+@say One subtle issue: if only one expert is selected and its selected weight is renormalized to one, the task loss has no gradient to the router through that mixture weight away from routing boundaries. Auxiliary losses or a different routing formulation may be needed. यह advanced extension है; पहले dense GDS reconstruction मजबूत करो। More parameters and sparse activation do not automatically mean lower batch compute or better accuracy.
+@scene Final reconstruction challenge and study plan
+@point Rebuild primitives, attention, relations, gates, blocks and pooling.
+@point Pass numerical, padding, permutation and gradient checks.
+@point Write one justified conclusion and one limitation for every experiment.
+@practice 180
+@say For your final project, reconstruct the model in stages without looking at the completed forward method. First write the input shapes and preprocessing contract. Then implement embeddings, pair summaries, gates, multihead attention with bias and masks, residual blocks, pooling, and the classifier. Compare each stage with the reference before adding the next.
+@say Divide your study across several sessions. Use one for algebra and tensors, one for differentiation and neural layers, one for particle and pair features, one for attention and gates, and one for reconstruction and experiments. Rewatch only the sections where you cannot yet explain the calculation on paper. Memorizing the final formula is not the target; being able to derive its pieces is.
+@say Your final report should distinguish software correctness, predictive performance, and scientific interpretation. State what you tested, what you measured, and what remains uncertain. अब अपना diagram बनाओ और बिना video देखे हर arrow explain करो। If you can connect the data contract to the final loss, debug a wrong mask, and explain why a larger gate need not mean more attention, you have built a serious foundation.
+@answer The complete route is: processed particle features produce particle states; four-vectors produce pair features and relation embeddings; relations generate gates and pair bias; gated attention and feed-forward residual blocks update particle states; pooling creates one jet representation; the classifier produces logits; cross entropy and backpropagation train the parameters. Dual stream refers to particle and relation representations. Gates rescale query and key channels, not the labels or raw physical truth. Keep the executable checks beside your equations, and let evidence determine your claims.

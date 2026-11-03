@@ -11,6 +11,18 @@ strict: true
 exclude_docs: |
   *.tex
   build/
+  learning_video/.venv/
+  learning_video/build/
+  learning_video/voices/
+  learning_video/output/
+  learning_video/__pycache__/
+  manim_course/.venv/
+  manim_course/media/
+  manim_course/output/
+  manim_course/voice_cache/
+  manim_course/__pycache__/
+  manim_course/companion/__pycache__/
+  manim_course/companion/output/
 
 theme:
   name: material
@@ -32,6 +44,8 @@ theme:
 nav:
   - Home: index.md
   - Setup and training guide: guide.md
+  - Superseded video prototype: learning_video/README.md
+  - Manim mathematics course: manim_course/README.md
   - GDS vs ParT (interactive): gds_vs_part.html
   - Technical report (PDF): GDS-ParT_Technical_Report.pdf
 
