@@ -1,7 +1,7 @@
 # GDS-ParT: Gated Dual-Stream Particle Transformer
 
 **GDS-ParT** is a PyTorch transformer for jet tagging on the
-[JetClass](https://zenodo.org/records/6619768) benchmark. It explores another way of feeding
+[JetClass](https://zenodo.org/records/6619768) benchmark. It examines a different method to put
 pairwise particle physics into attention.
 
 [Technical report (PDF)](GDS-ParT_Technical_Report.pdf){ .md-button .md-button--primary }
@@ -17,10 +17,10 @@ $$
 A = \mathrm{softmax}\!\left(\frac{QK^\top}{\sqrt d} + \psi(U)\right)
 $$
 
-GDS-ParT keeps two streams: particle states $X \in \mathbb R^{B\times N\times 128}$ and a relation
-tensor $R \in \mathbb R^{B\times N\times N\times 64}$ embedded from four pair features
+GDS-ParT keeps two streams. The first stream is the particle states $X \in \mathbb R^{B\times N\times 128}$. The second stream is a relation
+tensor $R \in \mathbb R^{B\times N\times N\times 64}$, which the model embeds from four pair features
 ($\ln\Delta$, $\ln k_T$, $\ln z$, $\ln m^2$). Each particle aggregates its row of $R$ into a summary
-$s_i$. Two small MLPs map that summary to identity-initialised gates, which rescale the query and key
+$s_i$. Two small MLPs change that summary into gates that start as the identity. These gates scale the query and key
 channels **before** the dot product:
 
 $$
@@ -28,9 +28,9 @@ g_i^{Q,K} = 1 + \tanh\big(\mathrm{MLP}_{Q,K}(s_i)\big) \in (0,2)^{D},\qquad
 q'_i = q_i \odot g_i^Q,\quad k'_j = k_j \odot g_j^K
 $$
 
-The pair physics therefore changes the space in which particles compare themselves, not only the
-final attention scores. The reported v2 model is a hybrid. It keeps a ParT-style per-head pair bias
-next to the gates and pools with two class-attention blocks.
+Thus, the pair physics changes the space in which the particles compare themselves. It does not only change the
+final attention scores. The reported v2 model is a hybrid. It keeps a ParT-style pair bias for each head
+together with the gates. It pools with two class-attention blocks.
 
 ## Results (10M training jets, 1M-jet balanced test subset)
 
@@ -41,20 +41,19 @@ next to the gates and pools with two class-attention blocks.
 | ParT, 10M jets (published) | 2.14M | 0.850 | 0.9860 |
 | ParticleNet, 10M jets (published) | 370k | 0.837 | 0.9837 |
 
-The ParT comparison is useful context but not controlled. The published model saw about five times
-more jets with a different optimiser and was evaluated on the full 20M test set. Small-budget
-ablations show that the additive bias matters most. The difference between the gated and bias-only
-models is within single-seed noise. The [technical report](GDS-ParT_Technical_Report.pdf) covers this
-in detail, together with the per-class rejections and the limitations. Full tables are in
+The ParT comparison gives useful context, but it is not a controlled comparison. The published model used about five times
+more jets and a different optimiser. Its evaluation used the full 20M test set. Ablations with a small budget show that the additive bias is the most important part.
+The difference between the gated model and the model with only a bias is in the noise of a single seed. The [technical report](GDS-ParT_Technical_Report.pdf) gives
+the details, with the rejections for each class and the limitations. The full tables are in
 [`results/v2_shared_10M_10ep/RESULTS.md`](https://github.com/Avinashistoocool/Gated-Dual-Stream-Particle-Transformer/blob/main/results/v2_shared_10M_10ep/RESULTS.md).
 
 ## Documentation
 
 | | |
 |---|---|
-| [**Technical report (PDF)**](GDS-ParT_Technical_Report.pdf) | Architecture with diagram, every equation as the code computes it, input features, gate gradients, training recipe, metrics, results, ablations, limitations and outlook. The LaTeX source is [`docs/GDS-ParT_Technical_Report.tex`](https://github.com/Avinashistoocool/Gated-Dual-Stream-Particle-Transformer/blob/main/docs/GDS-ParT_Technical_Report.tex). |
-| [**GDS vs ParT, interactive**](gds_vs_part.html) | Builds both architectures from tensors upward, with a live toy model comparing attention maps and an answered list of questions. |
-| [**Setup and training guide**](guide.md) | Environment, JetClass data, pipeline validation, training on a workstation or HPC cluster, ablations and reports. |
+| [**Technical report (PDF)**](GDS-ParT_Technical_Report.pdf) | The architecture with a diagram and each equation as the code calculates it. The input features, the gate gradients and the training recipe. The metrics, results, ablations, limitations and the outlook. The LaTeX source is [`docs/GDS-ParT_Technical_Report.tex`](https://github.com/Avinashistoocool/Gated-Dual-Stream-Particle-Transformer/blob/main/docs/GDS-ParT_Technical_Report.tex). |
+| [**GDS vs ParT, interactive**](gds_vs_part.html) | Builds the two architectures from tensors upward. It has a live toy model that compares attention maps, and a list of questions with answers. |
+| [**Setup and training guide**](guide.md) | The environment, the JetClass data, the validation of the pipeline, training on a workstation or an HPC cluster, ablations and reports. |
 
 ## Quick start
 
@@ -70,8 +69,8 @@ python train_gds_part.py --synthetic --epochs 1 --synthetic_batches 4 --batch_si
 
 ## Citing
 
-If you use GDS-ParT, cite it with GitHub's **Cite this repository** button, which reads
+If you use GDS-ParT, cite it with the GitHub **Cite this repository** button. This button reads
 [`CITATION.cff`](https://github.com/Avinashistoocool/Gated-Dual-Stream-Particle-Transformer/blob/main/CITATION.cff).
-Please also cite the ParT paper and the JetClass dataset:
+Also cite the ParT paper and the JetClass dataset:
 H. Qu, C. Li and S. Qian, *Particle Transformer for Jet Tagging*, ICML 2022,
 [arXiv:2202.03772](https://arxiv.org/abs/2202.03772).

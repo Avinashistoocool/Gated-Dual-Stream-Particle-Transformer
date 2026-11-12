@@ -1,6 +1,12 @@
 # GDS-ParT setup guide: lab workstation, HPC cluster, Colab
 
-This guide explains how to get the repository running on a new machine, check that the setup is correct, and launch training or evaluation. The same code runs everywhere. Only the paths and the GPU-memory settings change between machines.
+This guide tells you how to:
+
+1. Set up the repository on a new machine.
+2. Make sure that the setup is correct.
+3. Start training or evaluation.
+
+The same code operates on all machines. Only the paths and the settings for GPU memory change between machines.
 
 ---
 
@@ -12,9 +18,9 @@ This guide explains how to get the repository running on a new machine, check th
 | RAM | 16 GB | 32 GB+ |
 | Disk | ~25 GB (10M train + 1M val + 1M test ROOT files + cache) | NVMe/local scratch for the cache |
 | Python | 3.10+ | 3.11 |
-| CUDA driver | anything that supports your torch wheel (`nvidia-smi`) | |
+| CUDA driver | any driver that supports your torch wheel (`nvidia-smi`) | |
 
-Disk usage for each split is about 1.5 GB of ROOT files per 1M jets, plus about 1.9 GB of cache per 1M jets.
+For each split, the disk usage is about 1.5 GB of ROOT files per 1M jets, plus about 1.9 GB of cache per 1M jets.
 
 ---
 
@@ -25,10 +31,16 @@ git clone https://github.com/Avinashistoocool/Gated-Dual-Stream-Particle-Transfo
 cd gds_part
 ```
 
-The repository does not contain caches, and normally no checkpoints (`*.pt`). To continue an existing run on another machine, copy its `checkpoints/<run>/last.pt` and train with `--resume` and the same `--checkpoint_dir`.
+The repository does not contain caches. Usually, it also does not contain checkpoints (`*.pt`). To continue a run on a different machine, do these steps:
 
-**Exception: the 20-epoch 10M run is committed so it can be resumed from a clone.**
-`checkpoints/v2_shared_10M_20ep/last.pt` holds the state after epoch 8 of 20 (val acc 0.8473, model + EMA + optimizer + scheduler + history). To continue it, point `$DATA` at your JetClass folder (`train_10M`, `val`, `test`; see section 3) and run:
+1. Copy the `checkpoints/<run>/last.pt` file of the run.
+2. Train with `--resume` and the same `--checkpoint_dir`.
+
+**Exception: the repository contains the 20-epoch 10M run, so that you can resume it from a clone.**
+`checkpoints/v2_shared_10M_20ep/last.pt` contains the state after epoch 8 of 20 (val acc 0.8473, model + EMA + optimizer + scheduler + history). To continue the run, do these steps:
+
+1. Set `$DATA` to your JetClass folder (`train_10M`, `val`, `test`; refer to section 3).
+2. Run this command:
 
 ```bash
 python train_gds_part.py --train $DATA/train_10M --val $DATA/val --test $DATA/test \
@@ -37,7 +49,7 @@ python train_gds_part.py --train $DATA/train_10M --val $DATA/val --test $DATA/te
   --checkpoint_dir ./checkpoints/v2_shared_10M_20ep --resume
 ```
 
-Keep `--epochs 20`, `--batch_size 512` and the model flags unchanged, otherwise the LR schedule or the checkpoint will not match. The first run on a new machine rebuilds the cache in `--cache_dir`. The finished 10-epoch model (test acc 0.8484, AUC 0.9853) is in `checkpoints/v2_shared_10M_10ep/best.pt`, with its report in `results/v2_shared_10M_10ep/`.
+Do not change `--epochs 20`, `--batch_size 512` or the model flags. If you change them, the LR schedule or the checkpoint will not agree. The first run on a new machine builds the cache in `--cache_dir` again. The completed 10-epoch model (test acc 0.8484, AUC 0.9853) is in `checkpoints/v2_shared_10M_10ep/best.pt`. Its report is in `results/v2_shared_10M_10ep/`.
 
 ---
 
@@ -61,7 +73,7 @@ pip install -r requirements.txt
 bash hpc/setup_env.sh          # creates conda env "gds" and installs everything
 ```
 
-To change the CUDA wheel, edit the `--index-url` line in `hpc/setup_env.sh`. Run setup on the **login node**, because compute nodes usually have no internet access.
+To change the CUDA wheel, edit the `--index-url` line in `hpc/setup_env.sh`. Run the setup on the **login node**. Compute nodes usually do not have internet access.
 
 ### Verify
 
@@ -77,7 +89,7 @@ python train_gds_part.py --synthetic --epochs 1 --synthetic_batches 4 --batch_si
 
 ## 3. Get JetClass data
 
-`$DATA` is any folder you choose; it is not a fixed path. Set it before running the commands, for example `export DATA=/data/$USER/JetClass` (Linux) or `$env:DATA="D:\JetClass"` (PowerShell). Under it the trainer expects:
+`$DATA` is a folder that you select. It is not a fixed path. Set it before you run the commands. For example, use `export DATA=/data/$USER/JetClass` (Linux) or `$env:DATA="D:\JetClass"` (PowerShell). The trainer looks for this structure in the folder:
 
 ```
 $DATA/
@@ -87,14 +99,14 @@ $DATA/
 └── cache/       # created by the trainer (~25 GB for the splits above)
 ```
 
-**Option A: copy from a machine that already has it (fastest).** Copy `train_10M`, `val` and `test` (about 17 GB). You can also copy `cache` (about 25 GB) to skip the 20–40 min conversion. The cache directory names include the split folder name (for example `cache/train_train_10M_all_128`), so keep the folder names unchanged if you copy the cache.
+**Option A: copy the data from a machine that has it (fastest).** Copy `train_10M`, `val` and `test` (about 17 GB). You can also copy `cache` (about 25 GB), so that you do not do the 20–40 min conversion. The names of the cache directories include the name of the split folder (for example, `cache/train_train_10M_all_128`). Thus, if you copy the cache, do not change the folder names.
 
 ```bash
 rsync -avP user@laptop:/path/to/JetClass/ $DATA/          # or copy from an external drive
 ```
 
 **Option B: download from Zenodo.**
-Each JetClass ROOT file contains 100k jets of one class. `fetch_jetclass_subset.py` downloads only the files you request from Zenodo, using HTTP range reads, so you do not need to download the full 190 GB tarballs.
+Each JetClass ROOT file contains 100k jets of one class. `fetch_jetclass_subset.py` uses HTTP range reads to download from Zenodo only the files that you ask for. Thus, it is not necessary to download the full 190 GB tarballs.
 
 ```bash
 # 10M train (10 files/class), 1M val, 1M test  -> $DATA/{train,val,test}
@@ -103,19 +115,19 @@ mv $DATA/train $DATA/train_10M      # match the folder name used by the committe
 # quick experiments: --train_files 1  (1M jets)
 ```
 
-On HPC, use the scratch filesystem rather than `$HOME`, which has a small quota. Run the download on the login node or a data-transfer node:
+On HPC, use the scratch filesystem, not `$HOME`. The quota of `$HOME` is small. Run the download on the login node or on a data-transfer node:
 
 ```bash
 DATA=/scratch/$USER/JetClass bash hpc/setup_env.sh data
 ```
 
-When a split is first used, the trainer converts it into a ragged on-disk cache under `--cache_dir`. For 10M jets this takes 20–40 min of CPU time, and later runs reuse the cache. Caches are portable between machines because they are plain numpy memmaps, so you can rsync `$DATA/cache` to skip the conversion step.
+The first time that the trainer uses a split, it converts the split into a ragged cache on the disk in `--cache_dir`. For 10M jets, this conversion uses 20–40 min of CPU time. Later runs use the same cache again. The caches are plain numpy memmaps, so you can move them between machines. Thus, you can rsync `$DATA/cache` and not do the conversion step.
 
 ---
 
 ## 4. Validate the pipeline (strongly recommended on a new machine)
 
-This step runs the **official pretrained ParT** on your cached test data, using this repo's preprocessing and metric code. If the result matches the paper, your data, features, and metrics are correct.
+This step runs the **official pretrained ParT** on your cached test data. It uses the preprocessing code and the metric code of this repository. If the result agrees with the paper, your data, features and metrics are correct.
 
 ```bash
 pip install --no-deps weaver-core==0.4.17   # 0.5.x is incompatible with the released weights
@@ -125,7 +137,7 @@ python train_gds_part.py --train $DATA/train --val $DATA/val --test $DATA/test \
 python validate_pipeline.py --ckpt ParT_full.pt --cache $DATA/cache/test_test_all_128 --max_jets 200000
 ```
 
-Expected output: accuracy ≈ **0.861** and AUC ≈ **0.9877**. On 2026-10-19 the reference laptop measured 0.8612 / 0.9877 on 200k jets. Rejection values at high efficiency are noisy on small test sets.
+Expected output: accuracy ≈ **0.861** and AUC ≈ **0.9877**. On 2026-10-19, the reference laptop measured 0.8612 / 0.9877 on 200k jets. On small test sets, the rejection values at high efficiency have much noise.
 
 ---
 
@@ -144,12 +156,12 @@ python train_gds_part.py \
 
 | Knob | Meaning | Guidance |
 |---|---|---|
-| `--max_pairs_per_step` | upper limit on B·N² for each forward pass. Larger batches are split into micro-batches with gradient accumulation (the effective batch size stays the same) | 2M for 6 GB, 4–8M for 24 GB, 8–16M for 40–80 GB |
-| `--gpu_mem_fraction` | upper limit on PyTorch's share of VRAM | Keep 0.8 on **Windows** to avoid a ~4× slowdown from WDDM spilling into shared memory. Use 1 on Linux |
-| `--epochs` | passes over the train set | With 10M jets, the curve is still rising at epoch 8 (see `results/`). Use ≥ 20 |
-| `--jets_per_class` | subsample train | for quick experiments |
+| `--max_pairs_per_step` | Upper limit of B·N² for each forward pass. The trainer divides larger batches into micro-batches with gradient accumulation (the effective batch size does not change) | 2M for 6 GB, 4–8M for 24 GB, 8–16M for 40–80 GB |
+| `--gpu_mem_fraction` | Upper limit of the VRAM that PyTorch can use | Keep 0.8 on **Windows**. A higher value can let WDDM move data into shared memory, which makes training ~4× slower. Use 1 on Linux |
+| `--epochs` | Number of passes over the train set | With 10M jets, the curve continues to increase at epoch 8 (refer to `results/`). Use ≥ 20 |
+| `--jets_per_class` | Use a subsample of the train set | For quick experiments |
 
-Monitor the run with `tail -f checkpoints/v2_10M/train.log`, or with `python monitor_training.py --log checkpoints/v2_10M/train.log`.
+To monitor the run, use `tail -f checkpoints/v2_10M/train.log` or `python monitor_training.py --log checkpoints/v2_10M/train.log`.
 
 ### HPC: PBS/Torque
 
@@ -167,9 +179,9 @@ sbatch --export=ALL,DATA=/scratch/$USER/JetClass,EPOCHS=20,RUN=./checkpoints/v2_
 squeue -u $USER
 ```
 
-Both job scripts pass `--resume`. If a job reaches its walltime limit, resubmit the **same command with the same `RUN`** and training continues from `last.pt` (the optimizer, scheduler, and EMA state are restored as well). To pass any other trainer flag, use `EXTRA="--n_layers 8 --pair_bias 1"`.
+The two job scripts give the `--resume` flag. If a job gets to its walltime limit, submit the **same command with the same `RUN`** again. The training then continues from `last.pt`. The trainer also restores the optimizer, scheduler and EMA state. To give other trainer flags, use `EXTRA="--n_layers 8 --pair_bias 1"`.
 
-The first job builds the cache. If your cluster limits CPU time on GPU nodes, build the cache beforehand in a CPU job with `--cache_only`.
+The first job builds the cache. Your cluster can limit the CPU time on GPU nodes. In that case, build the cache first in a CPU job with `--cache_only`.
 
 ---
 
@@ -181,24 +193,24 @@ python run_ablations.py --train $DATA/train --val $DATA/val --cache_dir $DATA/ca
 python run_ablations.py ... --only v2_full,no_gate   # run a subset of variants
 ```
 
-For short runs (fewer than ~20k steps), add `--extra "--ema_decay 0"`, because an EMA with decay 0.999 lags behind and distorts the comparison. Summaries of the 2026-10-19 runs (with and without EMA) are in `results/ablation_summaries/`.
+For short runs (fewer than ~20k steps), add `--extra "--ema_decay 0"`. An EMA with decay 0.999 is late to follow the weights, and this makes the comparison incorrect. The summaries of the 2026-10-19 runs (with EMA and without EMA) are in `results/ablation_summaries/`.
 
-Every variant uses the same data and optimizer, and the script writes `ablations/ABLATIONS.md`. Completed variants are skipped when you run it again. Variants:
+All variants use the same data and the same optimizer. The script writes `ablations/ABLATIONS.md`. When you run the script again, it does not run the completed variants again. The variants are:
 
 | Name | What changes |
 |---|---|
 | `v1` | original model: shared sigmoid gate, mean pooling, 6 layers |
 | `v2_full` | current default |
-| `no_gate` | v2 without Q/K gates, which is ParT-style bias-only attention. This is the control for "do the gates help?" |
+| `no_gate` | v2 without Q/K gates, which is attention with only a bias, as in ParT. This is the control for the question "do the gates help?" |
 | `no_pair_bias` | v2 with gates only |
-| `shared_gate` | v2 with one uniform gate shared across layers |
+| `shared_gate` | v2 with one uniform gate that all layers share |
 | `v1_plus_cls` | v1 + class-attention pooling |
 
 ---
 
 ## 7. Evaluate and report
 
-When training finishes, the trainer evaluates `best.pt` on val and test and writes `results.json` and `{val,test}_predictions.npz`. Then run:
+When the training is complete, the trainer evaluates `best.pt` on val and test. It writes `results.json` and `{val,test}_predictions.npz`. Then run this command:
 
 ```bash
 python make_report.py --run_dir ./checkpoints/v2_10M   # plots + RESULTS.md with ParT-paper table
@@ -210,9 +222,9 @@ python make_report.py --run_dir ./checkpoints/v2_10M   # plots + RESULTS.md with
 
 | Symptom | Fix |
 |---|---|
-| `CUDA out of memory` | lower `--max_pairs_per_step` (training uses this value; evaluation uses 2× it) |
-| Very slow on Windows, GPU "shared memory" usage growing | keep `--gpu_mem_fraction 0.8` |
-| `no files for <class>` while building the cache | the directory must contain `<Prefix>_NNN.root` files (e.g. `HToBB_120.root`). Check `--train` |
-| Changed `--max_particles` / `--jets_per_class` | a new cache directory is created automatically. Old caches can be deleted |
-| Validation gives garbage (~10% acc) | wrong weaver-core version. Use 0.4.17 |
-| Resume complains about missing keys | the architecture flags must match the run that produced `last.pt` (see `args` in the checkpoint) |
+| `CUDA out of memory` | Decrease `--max_pairs_per_step`. Training uses this value, and evaluation uses 2× this value |
+| Training is slow on Windows, and the GPU "shared memory" usage increases | Keep `--gpu_mem_fraction 0.8` |
+| `no files for <class>` when the trainer builds the cache | The directory must contain `<Prefix>_NNN.root` files (for example, `HToBB_120.root`). Examine `--train` |
+| You changed `--max_particles` / `--jets_per_class` | The trainer makes a new cache directory automatically. You can delete the old caches |
+| Validation gives incorrect results (~10% acc) | The weaver-core version is incorrect. Use 0.4.17 |
+| Resume shows an error about missing keys | The architecture flags must be the same as in the run that made `last.pt` (refer to `args` in the checkpoint) |
