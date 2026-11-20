@@ -299,23 +299,24 @@ ways: through the query/key gates and through the additive per-head bias.
   par/.style={-{Latex[length=2mm]},thick,pairorange}]
  \node[st] (f) {Particle features $F$\\$(B,N,17)$};
  \node[st,below=of f] (pe) {ParticleEmbedding\\LN$\to$Lin$\to$GELU$\to$Lin, $D{=}128$};
- \node[pt,right=22mm of f] (v) {Four-vectors $(p_x,p_y,p_z,E)$\\$(B,N,4)$};
+ \node[pt,right=27mm of f] (v) {Four-vectors $(p_x,p_y,p_z,E)$\\$(B,N,4)$};
  \node[pt,below=of v] (u) {Pair features $U$ (on GPU)\\$\ln\Delta,\ln k_T,\ln z,\ln m^2$: $(B,N,N,4)$};
  \node[pt,below=of u] (r) {PairwiseEmbedding\\$R$: $(B,N,N,64)$};
- \node[pt,below left=6mm and -18mm of r] (g) {RelationalGate\\masked mean $\to$ two MLPs\\$G^Q,G^K=1+\tanh(\cdot)$};
- \node[pt,below right=6mm and -18mm of r] (b) {Pair bias Lin$(64\to8)$\\$\mathcal B$: $(B,8,N,N)$, $-\infty$ on padding};
- \node[st,below=26mm of pe,text width=64mm,minimum height=22mm] (blk) {};
- \node[align=center,text width=62mm] at (blk) {\textbf{Particle block} $\times L{=}8$\\[2pt]
+ \node[pt,below=of r] (g) {RelationalGate\\masked mean $\to$ two MLPs\\$G^Q,G^K=1+\tanh(\cdot)$};
+ \node[pt,below=of g] (b) {Pair bias Lin$(64\to8)$\\$\mathcal B$: $(B,8,N,N)$, $-\infty$ on padding};
+ \node[st,below=30mm of pe,text width=72mm,minimum height=29mm] (blk) {\textbf{Particle block} $\times L{=}8$\\[2pt]
    $H=\LN_1(X)$;\ $q'=(W_Qh)\Had g^Q$, $k'=(W_Kh)\Had g^K$\\
-   $X\leftarrow X+W_O\,\mathrm{softmax}(q'k'^\top/\sqrt{16}+\mathcal B)\,V$\\
+   $A=\softmax(q'k'^\top/\sqrt{16}+\mathcal B)$\\
+   $X\leftarrow X+W_OAV$\\
    $X\leftarrow X+\FFN(\LN_2(X))$\\ $\FFN:128\to512\to128$};
- \node[st,below=of blk] (cls) {Class attention $\times2$\\learned CLS token reads all particles};
+ \node[st,below=7mm of blk] (cls) {Class attention $\times2$\\learned CLS token reads all particles};
  \node[st,below=of cls] (head) {Final LN, classifier MLP\\$128\to128\to10$ (GELU)};
  \node[st,below=of head] (out) {Logits $(B,10)$};
- \draw[ar] (f)--(pe); \draw[ar] (pe)--node[right]{$X^{(0)}$: $(B,N,128)$}(blk);
- \draw[par] (v)--(u); \draw[par] (u)--(r); \draw[par] (r)--(g); \draw[par] (r)--(b);
- \draw[par] (g.south)|-node[pos=0.75,above]{$G^Q,G^K$: $(B,N,128)$}(blk.east);
- \draw[par] (b.south)|-([yshift=-6mm]blk.east)--([yshift=-6mm]blk.east);
+ \draw[ar] (f)--(pe); \draw[ar] (pe)--node[midway,left]{$X^{(0)}$: $(B,N,128)$}(blk);
+ \draw[par] (v)--(u); \draw[par] (u)--(r); \draw[par] (r)--(g);
+ \draw[par] (r.east)--++(8mm,0)|-(b.east);
+ \draw[par] (g.west)--([yshift=8mm]blk.east);
+ \draw[par] (b.west)--([yshift=-8mm]blk.east);
  \draw[ar] (blk)--(cls); \draw[ar] (cls)--(head); \draw[ar] (head)--(out);
 \end{tikzpicture}
 \caption{GDS-ParT v2 as trained for the reported run (shared gates, pair bias, two CLS blocks).
@@ -385,17 +386,18 @@ encodes pairs and is reused across particle blocks.
 
 \begin{figure}[ht]
 \centering
-\begin{tikzpicture}[scale=0.87,transform shape]
+\begin{tikzpicture}[box/.append style={text width=25mm,font=\footnotesize,minimum height=11mm}]
  \node[pbox] (f) {17 particle\\features};
- \node[pbox,right=12mm of f] (x) {$x_i^{(0)}$\\particle embedding};
- \node[pbox,right=12mm of x] (b1) {Particle block\\$\ell$};
- \node[pbox,right=12mm of b1] (b2) {Particle block\\$\ell+1$};
+ \node[pbox,right=8mm of f] (x) {$x_i^{(0)}$\\particle embedding};
+ \node[pbox,right=8mm of x] (b1) {Particle block\\$\ell$};
+ \node[pbox,right=8mm of b1] (b2) {Particle block\\$\ell+1$};
  \node[pairbox,below=19mm of f] (u) {4 pair\\features};
- \node[pairbox,right=12mm of u] (r) {$r_{ij}$\\pair embedding};
+ \node[pairbox,right=8mm of u] (r) {$r_{ij}$\\pair embedding};
  \draw[arrow] (f)--(x); \draw[arrow] (x)--(b1); \draw[arrow] (b1)--(b2);
  \draw[arrow] (u)--(r);
- \draw[arrow,pairorange] (r.east)-|(b1.south);
- \draw[arrow,pairorange] (r.east)--++(57mm,0)-|(b2.south);
+ \draw[pairorange,thick] (r.east)--(b2.south |- r.east);
+ \draw[arrow,pairorange] (b1.south |- r.east)--(b1.south);
+ \draw[arrow,pairorange] (b2.south |- r.east)--(b2.south);
 \end{tikzpicture}
 \caption{Two streams, fused inside attention. The relation tensor is reused;
 the particle stream is updated by successive blocks.}
@@ -1335,18 +1337,5 @@ recomputes pair features per batch on the selected device.
  \code{results/ablation_summaries/} (copied from the git-ignored run directories
  \code{ablations/} and \code{ablations_noema/}).
 \end{enumerate}
-
-\section*{Building this document}
-\addcontentsline{toc}{section}{Building this document}
-The source is one self-contained \code{.tex} file. It uses standard LaTeX
-packages and inline TikZ figures; it does not fetch figures or fonts from
-the network. Run pdfLaTeX twice to resolve the contents and cross-references:
-\begin{verbatim}
-pdflatex -interaction=nonstopmode -halt-on-error GDS-ParT_Technical_Report.tex
-pdflatex -interaction=nonstopmode -halt-on-error GDS-ParT_Technical_Report.tex
-\end{verbatim}
-Run these commands from the directory containing the file.
-On Overleaf, upload \code{GDS-ParT_Technical_Report.tex}, choose it as the main document and
-use pdfLaTeX.
 
 \end{document}
