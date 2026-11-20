@@ -160,7 +160,9 @@ def main():
     L.append(f"- Test set: `{run_args.get('test')}` — **{test['n_jets']:,} jets** (balanced, 10 classes)")
     L.append(f"- Model: {res['n_params']:,} parameters; embed_dim={run_args['embed_dim']}, "
              f"layers={run_args['n_layers']}, heads={run_args['n_heads']}, "
-             f"pairwise_embed_dim={run_args['pairwise_embed_dim']}, max_particles={run_args['max_particles']}")
+             f"pairwise_embed_dim={run_args['pairwise_embed_dim']}, max_particles={run_args['max_particles']}, "
+             f"per_layer_gate={run_args['per_layer_gate']}, pair_bias={run_args['pair_bias']}, "
+             f"n_cls_layers={run_args['n_cls_layers']}, ema_decay={run_args['ema_decay']}")
     L.append(f"- Optimizer: AdamW lr={run_args['lr']}, wd={run_args['weight_decay']}, "
              f"batch={run_args['batch_size']}, {run_args['epochs']} epochs, warmup {run_args['warmup_frac']:.0%} + cosine, AMP")
     L.append(f"- Checkpoint used for test: best validation accuracy (epoch {best_ep['epoch']})\n")
@@ -184,19 +186,21 @@ def main():
              f"**{test['accuracy']:.3f}** | **{test['auc_macro_ovo']:.4f}** | {ours_rej} |\n")
 
     ref = PAPER["ParT (10M)"]
-    L.append(f"Closest like-for-like reference is **ParT (10M)**: accuracy {ref[2]:.3f}, AUC {ref[3]:.4f}. "
+    L.append(f"Published reference with the same training-set size is **ParT (10M)**: accuracy {ref[2]:.3f}, AUC {ref[3]:.4f}. "
              f"GDS-ParT difference: accuracy {test['accuracy'] - ref[2]:+.3f}, "
-             f"AUC {test['auc_macro_ovo'] - ref[3]:+.4f}.\n")
+             f"AUC {test['auc_macro_ovo'] - ref[3]:+.4f}. Training and evaluation budgets differ.\n")
 
     L.append("### Caveats for a fair reading\n")
-    L.append(f"- **Test set size**: ours is a {test['n_jets']:,}-jet balanced subset of the official 20M test split "
-             "(1 file per class). Accuracy/AUC are stable at this size (stat. error ~0.0004 on accuracy), "
-             "but high rejection values (e.g. Tbl Rej99.5, Hbb Rej50) rely on very few surviving QCD jets "
-             "and carry large statistical uncertainty (~10–30%).")
+    L.append(f"- **Test set size**: this evaluation used {test['n_jets']:,} jets, "
+             "rather than the paper's full 20M-jet test set. Source file manifests are not committed, "
+             "so subset identity and disjointness cannot be independently checked. "
+             "High rejection values rely on few surviving QCD jets and are sensitive to subset selection.")
     L.append(f"- **Training budget**: the paper trains for 1M iterations x batch 512 (~512M jets seen). "
-             f"This run saw {run_args['epochs']} x {train_tag.replace('train_', '')} jets on a single 6 GB laptop GPU.")
-    L.append(f"- **Model size**: GDS-ParT here has {res['n_params'] / 1e6:.2f}M params vs 2.14M for ParT; "
-             "no class-attention blocks; pairwise information used via Q/K gates instead of attention bias.")
+             f"This run recorded {run_args['epochs']} epochs on {train_tag.replace('train_', '')} training jets.")
+    L.append(f"- **Architecture**: this configuration has {res['n_params'] / 1e6:.2f}M params vs 2.14M for ParT; "
+             f"{run_args['n_cls_layers']} class-attention blocks, "
+             f"{'per-layer' if run_args['per_layer_gate'] else 'shared'} Q/K gates, "
+             f"and pairwise attention bias {'enabled' if run_args['pair_bias'] else 'disabled'}.")
     L.append("- **Optimizer**: AdamW + cosine (ours) vs Lookahead(RAdam) + step decay (paper).")
     L.append("- Rejection uses the paper's definition: Rej_X% = 1/FPR at TPR = X%, with score S/(S+B) "
              "and QCD as background.\n")

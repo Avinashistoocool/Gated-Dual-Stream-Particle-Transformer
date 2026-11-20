@@ -902,10 +902,10 @@
         <tr><td>gates only, no bias</td><td class="n">2.49M</td><td class="n">0.6223</td><td class="n">0.9315</td></tr>
       </table>
       <ul>
-        <li><b>Gates + bias and bias alone are tied</b> (difference 0.2 pp, within run-to-run noise). At this budget, adding gates neither helps nor hurts.</li>
+        <li><b>The shared-gate + bias model exceeds bias alone by 0.235 percentage points</b> in this one-seed short-budget comparison. Run-to-run variability and the significance of this difference are unknown.</li>
         <li><b>Gates alone are clearly worse</b> than bias alone (−7 pp). The exact per-pair term is the stronger ingredient, because gates can only make factorised, rank-1-per-channel pair weights (<a href="#c8">Chapter 8</a>).</li>
-        <li>The trained network still leans on its gates (point 3) because, given gates, it routes information through them. Without gates, the bias and the FFNs learn to do the same job.</li>
-        <li>At 10M jets, v2 gets 0.848 against 0.850 for the published ParT. That is also consistent with "no measurable gain yet".</li>
+        <li>Exploratory gate-knockout values for the trained network lack committed reproduction artifacts; even if reproduced, they would not establish a benefit over retraining without gates.</li>
+        <li>At 10M training jets, v2 has 0.848 accuracy on a 1M-jet test subset, compared with 0.850 for published ParT on the full 20M test set. Different training schedules and test sets prevent a controlled comparison.</li>
       </ul>
 
       <h4>5. What would settle it</h4>
@@ -1162,12 +1162,12 @@ class GDSParTBlock(nn.Module):
   </details>
 
   <details class="doubt" data-tags="architecture">
-    <summary><span class="qn">Q14</span><span class="qt">Can I study all the mathematics from basic algebra to GDS-ParT in one document?</span><span class="meta"><span class="tag gds">architecture</span><span class="chev">▶</span></span></summary>
+    <summary><span class="qn">Q14</span><span class="qt">Where are the GDS-ParT methods and results documented?</span><span class="meta"><span class="tag gds">architecture</span><span class="chev">▶</span></span></summary>
     <div class="ans">
-      <div class="tldr"><b>Yes:</b> the technical report starts with variables and vector products, then builds up to the exact GDS-ParT forward pass and gate derivatives. Read the <a href="GDS-ParT_Technical_Report.pdf">PDF</a> or edit the <a href="https://github.com/Avinashistoocool/Gated-Dual-Stream-Particle-Transformer/blob/main/docs/GDS-ParT_Technical_Report.tex">self-contained LaTeX source</a>.</div>
-      <p>The learning path covers algebra, linear algebra, tensor shapes, probability, calculus, MLPs, LayerNorm, the 17 particle features, the four pair features, embeddings, attention, the ParT bias, GDS gates, pooling, training and the MoE extension. It includes worked calculations, diagrams, exercises and answers.</p>
+      <div class="tldr"><b>The technical report</b> specifies the model, training and evaluation and reports the measured results and limitations. Read the <a href="GDS-ParT_Technical_Report.pdf">PDF</a> or its <a href="https://github.com/Avinashistoocool/Gated-Dual-Stream-Particle-Transformer/blob/main/docs/GDS-ParT_Technical_Report.tex">LaTeX source</a>.</div>
+      <p>It covers the 17 particle features, four pair features, embeddings, attention, the ParT-style bias, GDS gates, pooling, training, ablations and reproduction details. The interactive examples on this page are separate from the research report.</p>
       <p><b>Why dual-stream?</b> One stream contains particle states X, with shape (B,N,D). The other contains pair relations R, with shape (B,N,N,Dp). The relation stream supplies gates and optional pair biases to the particle blocks. It is not named after Q and K. The current implementation reuses R rather than updating it recurrently through a second transformer.</p>
-      <p><b>Corrections to earlier explanations:</b> larger gates do not always increase attention, because Q/K contributions can be negative. Average-gate correlations do not prove core-to-periphery information flow. Gate knockout measures reliance in an already trained network, not an advantage over a model retrained without gates. The textbook explains these limits explicitly.</p>
+      <p><b>Interpretation limits:</b> larger gates do not always increase attention, because Q/K contributions can be negative. Average-gate correlations do not prove core-to-periphery information flow. Gate knockout measures reliance in an already trained network, not an advantage over a model retrained without gates. The report states these limits explicitly.</p>
       <p class="asked">asked 29 Oct 2026 · see <a href="GDS-ParT_Technical_Report.pdf">the GDS-ParT technical report</a></p>
     </div>
   </details>

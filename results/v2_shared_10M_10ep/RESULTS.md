@@ -5,7 +5,7 @@
 - Training set: `D:\JetClass\train_10M` (train_10M)
 - Validation set: `D:\JetClass\val` — 1,000,000 jets
 - Test set: `D:\JetClass\test` — **1,000,000 jets** (balanced, 10 classes)
-- Model: 2,074,420 parameters; embed_dim=128, layers=8, heads=8, pairwise_embed_dim=64, max_particles=128
+- Model: 2,074,420 parameters; embed_dim=128, layers=8, heads=8, pairwise_embed_dim=64, max_particles=128, per_layer_gate=0, pair_bias=1, n_cls_layers=2, ema_decay=0.9999
 - Optimizer: AdamW lr=0.001, wd=0.01, batch=512, 10 epochs, warmup 5% + cosine, AMP
 - Checkpoint used for test: best validation accuracy (epoch 10)
 
@@ -34,13 +34,13 @@ Published numbers from Qu et al., *Particle Transformer for Jet Tagging*, ICML 2
 | ParT plain (100M) | 100M | 2.13M | 0.849 | 0.9859 | 9,569 | 2,911 | 112 | 1,185 | 3,868 | 17,699 | 12,987 | 384 | 311 |
 | **GDS-ParT (10M)** | 10M | 2.07M | **0.848** | **0.9853** | 7,143 | 2,259 | 104 | 1,250 | 1,923 | 10,000 | 3,846 | 328 | 264 |
 
-Closest like-for-like reference is **ParT (10M)**: accuracy 0.850, AUC 0.9860. GDS-ParT difference: accuracy -0.002, AUC -0.0007.
+Published reference with the same training-set size is **ParT (10M)**: accuracy 0.850, AUC 0.9860. GDS-ParT difference: accuracy -0.002, AUC -0.0007. Training and evaluation budgets differ.
 
 ### Caveats for a fair reading
 
-- **Test set size**: ours is a 1,000,000-jet balanced subset of the official 20M test split (1 file per class). Accuracy/AUC are stable at this size (stat. error ~0.0004 on accuracy), but high rejection values (e.g. Tbl Rej99.5, Hbb Rej50) rely on very few surviving QCD jets and carry large statistical uncertainty (~10–30%).
-- **Training budget**: the paper trains for 1M iterations x batch 512 (~512M jets seen). This run saw 10 x 10M jets on a single 6 GB laptop GPU.
-- **Model size**: GDS-ParT here has 2.07M params vs 2.14M for ParT; no class-attention blocks; pairwise information used via Q/K gates instead of attention bias.
+- **Test set size**: this evaluation used 1,000,000 jets, rather than the paper's full 20M-jet test set. Source file manifests are not committed, so subset identity and disjointness cannot be independently checked. High rejection values rely on few surviving QCD jets and are sensitive to subset selection.
+- **Training budget**: the paper trains for 1M iterations x batch 512 (~512M jets seen). This run recorded 10 epochs on 10M training jets.
+- **Architecture**: this configuration has 2.07M params vs 2.14M for ParT; 2 class-attention blocks, shared Q/K gates, and pairwise attention bias enabled.
 - **Optimizer**: AdamW + cosine (ours) vs Lookahead(RAdam) + step decay (paper).
 - Rejection uses the paper's definition: Rej_X% = 1/FPR at TPR = X%, with score S/(S+B) and QCD as background.
 

@@ -42,9 +42,10 @@ next to the gates and pools with two class-attention blocks.
 | ParticleNet, 10M jets (published) | 370k | 0.837 | 0.9837 |
 
 The ParT comparison is useful context but not controlled. The published model saw about five times
-more jets with a different optimiser and was evaluated on the full 20M test set. Small-budget
-ablations show that the additive bias matters most. The difference between the gated and bias-only
-models is within single-seed noise. The [technical report](GDS-ParT_Technical_Report.pdf) covers this
+more jets with a different optimiser and was evaluated on the full 20M test set. At a small
+training budget, shared gates plus bias exceeded bias only by 0.002346 validation accuracy;
+whether this difference is reproducible is unknown with one seed. The gates-only variant
+performed substantially worse at this budget. The [technical report](GDS-ParT_Technical_Report.pdf) covers this
 in detail, together with the per-class rejections and the limitations. Full tables are in
 [`results/v2_shared_10M_10ep/RESULTS.md`](https://github.com/Avinashistoocool/Gated-Dual-Stream-Particle-Transformer/blob/main/results/v2_shared_10M_10ep/RESULTS.md).
 
@@ -52,7 +53,7 @@ in detail, together with the per-class rejections and the limitations. Full tabl
 
 | | |
 |---|---|
-| [**Technical report (PDF)**](GDS-ParT_Technical_Report.pdf) | Architecture with diagram, every equation as the code computes it, input features, gate gradients, training recipe, metrics, results, ablations, limitations and outlook. The LaTeX source is [`docs/GDS-ParT_Technical_Report.tex`](https://github.com/Avinashistoocool/Gated-Dual-Stream-Particle-Transformer/blob/main/docs/GDS-ParT_Technical_Report.tex). |
+| [**Technical report (PDF)**](GDS-ParT_Technical_Report.pdf) | Architecture, input features, attention and gate equations, gate-path gradients, training recipe, metrics, results, ablations and limitations. The LaTeX source is [`docs/GDS-ParT_Technical_Report.tex`](https://github.com/Avinashistoocool/Gated-Dual-Stream-Particle-Transformer/blob/main/docs/GDS-ParT_Technical_Report.tex). |
 | [**GDS vs ParT, interactive**](gds_vs_part.html) | Builds both architectures from tensors upward, with a live toy model comparing attention maps and an answered list of questions. |
 | [**Setup and training guide**](guide.md) | Environment, JetClass data, pipeline validation, training on a workstation or HPC cluster, ablations and reports. |
 
