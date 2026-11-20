@@ -5,6 +5,7 @@
 pairwise particle physics into attention.
 
 [Technical report (PDF)](GDS-ParT_Technical_Report.pdf){ .md-button .md-button--primary }
+[Published report on Zenodo](https://zenodo.org/records/24377809){ .md-button }
 [Interactive explainer](gds_vs_part.html){ .md-button }
 [Source on GitHub](https://github.com/Avinashistoocool/Gated-Dual-Stream-Particle-Transformer){ .md-button }
 

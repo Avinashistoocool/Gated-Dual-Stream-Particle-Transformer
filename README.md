@@ -42,6 +42,8 @@ specifies the inputs, architecture, gate-path gradients, training recipe, evalua
 results, ablations and limitations. It distinguishes exploratory gate diagnostics from
 unproven accuracy gains. See [Documentation](#documentation).
 
+**Published report:** [GDS-ParT on Zenodo](https://zenodo.org/records/24377809) (version 1.0.0).
+
 **Follow-up project:** [GDS-ParT-MoE](https://github.com/Avinashistoocool/GDS-parT-MoE) replaces the particle FFNs with a per-particle Mixture-of-Experts and measures what physics each expert learns.
 
 ## Why this is different
