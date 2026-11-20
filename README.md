@@ -42,7 +42,8 @@ specifies the inputs, architecture, gate-path gradients, training recipe, evalua
 results, ablations and limitations. It distinguishes exploratory gate diagnostics from
 unproven accuracy gains. See [Documentation](#documentation).
 
-**Published report:** [GDS-ParT on Zenodo](https://zenodo.org/records/24377809) (version 1.0.0).
+**Published report:** [GDS-ParT on Zenodo](https://zenodo.org/records/24377809) (version 1.0.0;
+DOI: [10.5281/zenodo.24377809](https://doi.org/10.5281/zenodo.24377809)).
 
 **Follow-up project:** [GDS-ParT-MoE](https://github.com/Avinashistoocool/GDS-parT-MoE) replaces the particle FFNs with a per-particle Mixture-of-Experts and measures what physics each expert learns.
 
@@ -199,8 +200,11 @@ Browse everything at **[avinashistoocool.github.io/Gated-Dual-Stream-Particle-Tr
 
 ## Citing
 
-If GDS-ParT helps your research, cite it with GitHub's **Cite this repository** button
-(from [`CITATION.cff`](CITATION.cff)). Please also cite the [ParT paper][1] and [JetClass dataset][3].
+For the software, use GitHub's **Cite this repository** button (from
+[`CITATION.cff`](CITATION.cff)). For the technical report, cite Avinash Chandra
+Gupta, *GDS-ParT: Gated Dual-Stream Particle Transformer*, version 1.0.0 (2026),
+DOI: [10.5281/zenodo.24377809](https://doi.org/10.5281/zenodo.24377809).
+Please also cite the [ParT paper][1] and [JetClass dataset][3] where relevant.
 
 ## Reference sources
 

@@ -74,6 +74,9 @@ python train_gds_part.py --synthetic --epochs 1 --synthetic_batches 4 --batch_si
 
 If you use GDS-ParT, cite it with GitHub's **Cite this repository** button, which reads
 [`CITATION.cff`](https://github.com/Avinashistoocool/Gated-Dual-Stream-Particle-Transformer/blob/main/CITATION.cff).
+This cites the software. To cite the technical report, use Avinash Chandra Gupta,
+*GDS-ParT: Gated Dual-Stream Particle Transformer*, version 1.0.0 (2026),
+DOI: [10.5281/zenodo.24377809](https://doi.org/10.5281/zenodo.24377809).
 Please also cite the ParT paper and the JetClass dataset:
 H. Qu, C. Li and S. Qian, *Particle Transformer for Jet Tagging*, ICML 2022,
 [arXiv:2202.03772](https://arxiv.org/abs/2202.03772).
